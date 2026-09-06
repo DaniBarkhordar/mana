@@ -69,6 +69,7 @@ class _MananuShellState extends ConsumerState<MananuShell> {
     // listener that stores each settled body reading.
     ref.watch(scaleSessionProvider);
     ref.watch(bodyReadingRecorderProvider);
+    ref.watch(healthRefreshProvider);
     final index = ref.watch(shellIndexProvider);
 
     return Scaffold(

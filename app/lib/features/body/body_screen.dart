@@ -92,6 +92,7 @@ class BodyScreen extends ConsumerWidget {
                           ),
                           const SizedBox(height: MananuSpacing.xl),
                         ],
+                        const _WearablesCard(),
                         MananuSection(
                           title: 'This reading',
                           child: _MetricGrid(metrics: latest.metrics),
@@ -115,6 +116,92 @@ class BodyScreen extends ConsumerWidget {
       builder: (_) => const _ProtocolSheet(),
     );
   }
+}
+
+/// Last night, from whatever the person wears: sleep, HRV, resting heart
+/// rate, steps — each with the device that said so. Rendered only when there
+/// is something to show, so a phone with no wearable never sees an empty
+/// card. Same timeline as the scale, which is the whole point.
+class _WearablesCard extends ConsumerWidget {
+  const _WearablesCard();
+
+  static const _kinds = [
+    ('sleep_minutes', 'Sleep', Icons.bedtime_outlined),
+    ('hrv_sdnn_ms', 'HRV', Icons.monitor_heart_outlined),
+    ('hrv_rmssd_ms', 'HRV', Icons.monitor_heart_outlined),
+    ('resting_hr_bpm', 'Resting HR', Icons.favorite_outline),
+    ('steps', 'Steps', Icons.directions_walk),
+  ];
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final scheme = Theme.of(context).colorScheme;
+    final muted = scheme.onSurface.withValues(alpha: 0.55);
+    final tiles = <Widget>[];
+    DateTime? newest;
+    for (final (kind, label, icon) in _kinds) {
+      final point = ref.watch(latestObservationProvider(kind)).valueOrNull;
+      if (point == null) continue;
+      // Older than a week is not "last night".
+      if (DateTime.now().difference(point.at).inDays > 7) continue;
+      if (newest == null || point.at.isAfter(newest)) newest = point.at;
+      tiles.add(
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(icon, size: 18, color: MananuColors.brass),
+              const SizedBox(height: MananuSpacing.xs),
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  _format(kind, point.value),
+                  style: MananuType.display.copyWith(
+                    fontSize: 22,
+                    color: scheme.onSurface,
+                  ),
+                ),
+              ),
+              Text(
+                label,
+                style: MananuType.caption.copyWith(fontSize: 11, color: muted),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+    if (tiles.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(bottom: MananuSpacing.xl),
+      child: Card(
+        child: Padding(
+          padding: const EdgeInsets.all(MananuSpacing.lg),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'FROM YOUR WEARABLE · ${DateFormat('EEE d MMM').format(newest!).toUpperCase()}',
+                style: MananuType.label.copyWith(color: muted),
+              ),
+              const SizedBox(height: MananuSpacing.md),
+              Row(children: tiles),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  static String _format(String kind, double v) => switch (kind) {
+        'sleep_minutes' =>
+          '${(v ~/ 60)}h ${(v % 60).round().toString().padLeft(2, '0')}',
+        'hrv_sdnn_ms' || 'hrv_rmssd_ms' => '${v.round()} ms',
+        'resting_hr_bpm' => '${v.round()} bpm',
+        'steps' => thousands(v),
+        _ => v.toStringAsFixed(0),
+      };
 }
 
 class _TrendHeadline extends StatelessWidget {

@@ -20,6 +20,10 @@
 	<string>Mananu connects to your body scale and kitchen scale over Bluetooth to read weight and body-composition measurements.</string>
 	<key>NSBluetoothPeripheralUsageDescription</key>
 	<string>Mananu connects to your body scale and kitchen scale over Bluetooth to read weight and body-composition measurements.</string>
+	<key>NSHealthShareUsageDescription</key>
+	<string>Mananu reads sleep, resting heart rate, heart rate variability, steps and workouts from Health so they appear on the same timeline as your scale readings, with the device that recorded them named.</string>
+	<key>NSHealthUpdateUsageDescription</key>
+	<string>If you choose, Mananu writes each measured weight from your scale to Health. Body composition is worked out from impedance, not measured, so it is never written.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Mananu uses the camera to work out what a food is and to scan barcodes. The amount always comes from the scale.</string>
 	<key>CFBundlePackageType</key>

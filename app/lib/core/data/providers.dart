@@ -21,6 +21,7 @@ import '../bia/body_composition.dart';
 import '../billing/entitlements.dart';
 import '../bia/equations.dart';
 import '../food/food_catalog.dart';
+import '../health/health_importer.dart';
 import '../food/food_identifier.dart';
 import '../food/food_search.dart';
 import '../food/open_food_facts.dart';
@@ -57,6 +58,7 @@ export '../billing/entitlements.dart'
         PlusPeriod,
         PlusStatus,
         PurchaseCancelled;
+export '../health/health_importer.dart' show HealthImporter, HealthKind;
 export 'account_actions.dart' show AccountActions, DataExporter;
 export 'models.dart';
 export 'sync/sync_engine.dart' show SyncOutcome, SyncReport;
@@ -265,6 +267,72 @@ final plusStatusProvider = StreamProvider<PlusStatus>((ref) async* {
   final service = await ref.watch(entitlementServiceProvider.future);
   yield service.status;
   yield* service.changes;
+});
+
+// ---------------------------------------------------------------------------
+// Wearables
+// ---------------------------------------------------------------------------
+
+/// Apple Health / Health Connect, behind the importer. Tests override the
+/// gateway.
+final healthGatewayProvider =
+    Provider<HealthGateway>((ref) => PlatformHealthGateway());
+
+final healthImporterProvider = FutureProvider<HealthImporter>((ref) async {
+  final s = await ref.watch(appServicesProvider.future);
+  return HealthImporter(
+    gateway: ref.watch(healthGatewayProvider),
+    observations: s.observations,
+    db: s.db,
+  );
+});
+
+final healthConnectedProvider = StreamProvider<bool>((ref) async* {
+  final importer = await ref.watch(healthImporterProvider.future);
+  yield* importer.watchConnected();
+});
+
+final healthWritesWeightProvider = StreamProvider<bool>((ref) async* {
+  final importer = await ref.watch(healthImporterProvider.future);
+  yield* importer.watchWritesWeight();
+});
+
+final healthLastImportProvider = StreamProvider<DateTime?>((ref) async* {
+  final importer = await ref.watch(healthImporterProvider.future);
+  yield* importer.watchLastImport();
+});
+
+/// Every source that has written an observation, for the Sources screen.
+final observationSourcesProvider = FutureProvider<List<String>>((ref) async {
+  final s = await ref.watch(appServicesProvider.future);
+  // Re-read when anything changes.
+  ref.watch(bodyHistoryProvider);
+  return s.observations.sources();
+});
+
+/// The latest observation of one kind: "last night's sleep", "yesterday's
+/// resting heart rate".
+final latestObservationProvider =
+    StreamProvider.family<ObservationPoint?, String>((ref, kind) async* {
+  final s = await ref.watch(appServicesProvider.future);
+  yield* s.observations
+      .watchSeries(kind)
+      .map((series) => series.isEmpty ? null : series.last);
+});
+
+/// Pulls new wearable data when the app comes to the foreground, if the
+/// store is connected. Kept alive by the shell.
+final healthRefreshProvider = Provider<void>((ref) {
+  final connected = ref.watch(healthConnectedProvider).valueOrNull ?? false;
+  if (!connected) return;
+  unawaited(() async {
+    try {
+      final importer = await ref.read(healthImporterProvider.future);
+      await importer.importSince();
+    } on Object {
+      // Not available right now; the next launch tries again.
+    }
+  }());
 });
 
 // ---------------------------------------------------------------------------
@@ -531,6 +599,12 @@ final bodyReadingRecorderProvider = Provider<void>((ref) {
         'driver': driver.driverName,
       },
     );
+    // Measured weight to Health, when asked. Never the demo scale's, never
+    // the composition.
+    if (driver is! SimulatedScaleDriver) {
+      final importer = ref.read(healthImporterProvider).valueOrNull;
+      await importer?.shareWeight(sample.kg, sample.at);
+    }
   });
   ref.onDispose(sub.cancel);
 });

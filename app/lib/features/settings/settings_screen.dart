@@ -8,6 +8,7 @@ import '../../theme/tokens.dart';
 import 'account_screen.dart';
 import 'paywall_screen.dart';
 import 'scale_pairing_sheet.dart';
+import 'sources_screen.dart';
 
 /// Settings.
 ///
@@ -64,6 +65,27 @@ class SettingsScreen extends ConsumerWidget {
                       const _DemoScaleTile(),
                     ],
                   ],
+                ),
+              ),
+            ),
+            const SizedBox(height: MananuSpacing.xl),
+            MananuSection(
+              title: 'Wearables',
+              child: Card(
+                child: _NavTile(
+                  icon: Icons.favorite_outline,
+                  title: 'Connected sources',
+                  subtitle: (ref.watch(healthConnectedProvider).valueOrNull ??
+                          false)
+                      ? 'Health connected. Sleep, heart and steps arrive on '
+                          'the same timeline as your readings.'
+                      : 'Bring in sleep, heart rate, HRV and steps from the '
+                          'devices you already wear.',
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => const SourcesScreen(),
+                    ),
+                  ),
                 ),
               ),
             ),

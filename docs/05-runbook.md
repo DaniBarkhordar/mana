@@ -126,6 +126,12 @@ The app never decides its own tier. RevenueCat talks to the stores, the webhook 
 
 Bundled Plus with the hardware: grant it in RevenueCat as a promotional entitlement with an end date; the webhook writes the expiry and the tier lapses to free when it passes (runbook §7).
 
+## 3c. Health
+
+- **iOS:** the Runner target needs the HealthKit capability (the entitlements file declares it; enable it on the App ID in the developer portal too). Usage strings are in `Info.plist`.
+- **Android:** Health Connect needs a published privacy policy URL that explains health-data use, linked from the Play listing *and* reachable from the permissions rationale intent the manifest declares. Google reviews Health Connect access as a separate form in the Play Console ("Health apps" declaration): list the seven permissions the manifest requests and the reason for each (runbook §9 has the wording).
+- Body fat is never written to either store. Do not add it back: it is a modelled estimate, and both platforms treat what is written as measured.
+
 ## 4. Wiring the real scale
 
 The vendor driver is written against the vendored plugin (`vendor/pp_bluetooth_kit_flutter`, a path dependency) and tested against a fake channel. What it needs from you is the licence:
