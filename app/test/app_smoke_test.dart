@@ -7,6 +7,7 @@ import 'package:mananu/core/data/providers.dart';
 import 'package:mananu/core/nutrition/models.dart';
 import 'package:mananu/core/nutrition/portion.dart';
 import 'package:mananu/core/scale/scale_driver.dart';
+import 'package:mananu/features/settings/settings_screen.dart';
 
 /// Boots the whole app on an in-memory database with no backend configured —
 /// exactly the aeroplane-mode case — and walks the main flow: onboarding,
@@ -221,6 +222,15 @@ void main() {
     await completeOnboarding(tester);
     await tester.tap(_tab('Settings'));
     await tester.pump(const Duration(milliseconds: 300));
+    // The Backup tile sits below the fold on a phone.
+    await tester.dragUntilVisible(
+      find.text('Saved on this phone. This build has no cloud backup.'),
+      find.descendant(
+        of: find.byType(SettingsScreen),
+        matching: find.byType(ListView),
+      ),
+      const Offset(0, -200),
+    );
     expect(
       find.text('Saved on this phone. This build has no cloud backup.'),
       findsOneWidget,

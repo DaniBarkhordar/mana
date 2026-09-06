@@ -32,6 +32,7 @@ import '../../core/nutrition/models.dart';
 import '../../core/nutrition/portion.dart';
 import '../../core/scale/scale_driver.dart';
 import '../../theme/tokens.dart';
+import '../settings/paywall_screen.dart';
 import '../settings/scale_pairing_sheet.dart';
 import 'add_food_sheet.dart';
 import 'barcode_scan_screen.dart';
@@ -139,7 +140,11 @@ class _WeighFoodScreenState extends ConsumerState<WeighFoodScreen> {
             onCookingFat: _addCookingFat,
           ),
           if (components.isNotEmpty)
-            _MealSummaryBar(totals: totals, onSave: _save),
+            _MealSummaryBar(
+              totals: totals,
+              onSave: _save,
+              onSaveRecipe: () => _saveAsRecipe(grams),
+            ),
         ],
       ),
     );
@@ -209,6 +214,39 @@ class _WeighFoodScreenState extends ConsumerState<WeighFoodScreen> {
     );
     ref.read(weighSessionProvider.notifier).reset();
     if (mounted) Navigator.of(context).pop();
+  }
+
+  /// Weigh the ingredients once, weigh the finished dish, log portions by
+  /// weight forever. Plus, where purchases are configured.
+  Future<void> _saveAsRecipe(double liveGrams) async {
+    final components = ref.read(weighSessionProvider);
+    if (components.isEmpty) return;
+    if (BillingConfig.isConfigured &&
+        !(ref.read(plusStatusProvider).valueOrNull?.isPlus ?? false)) {
+      await PaywallScreen.show(
+        context,
+        reason: 'Recipes are part of Plus: weigh a dish once, log a portion '
+            'by weight forever.',
+      );
+      return;
+    }
+    final saved = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) => _RecipeSaveSheet(
+        components: components,
+        suggestedYieldGrams: liveGrams > 0 ? liveGrams : null,
+      ),
+    );
+    if (saved == true && mounted) {
+      ref.read(weighSessionProvider.notifier).reset();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Saved. Search for it by name to log a portion.'),
+        ),
+      );
+    }
   }
 }
 
@@ -653,10 +691,15 @@ class _ActionButton extends StatelessWidget {
 }
 
 class _MealSummaryBar extends StatelessWidget {
-  const _MealSummaryBar({required this.totals, required this.onSave});
+  const _MealSummaryBar({
+    required this.totals,
+    required this.onSave,
+    required this.onSaveRecipe,
+  });
 
   final MealTotals totals;
   final VoidCallback onSave;
+  final VoidCallback onSaveRecipe;
 
   @override
   Widget build(BuildContext context) {
@@ -718,7 +761,12 @@ class _MealSummaryBar extends StatelessWidget {
                 ],
               ),
             ),
-            const SizedBox(width: MananuSpacing.md),
+            const SizedBox(width: MananuSpacing.sm),
+            IconButton(
+              tooltip: 'Save as recipe',
+              onPressed: onSaveRecipe,
+              icon: const Icon(Icons.menu_book_outlined),
+            ),
             FilledButton(
               onPressed: onSave,
               style: FilledButton.styleFrom(
@@ -728,6 +776,129 @@ class _MealSummaryBar extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Name it, then weigh the finished dish. The yield is what makes the
+/// per-portion figures right: water boils off and fat renders out, so the
+/// sum of the ingredients would overstate every portion, forever.
+class _RecipeSaveSheet extends ConsumerStatefulWidget {
+  const _RecipeSaveSheet({
+    required this.components,
+    required this.suggestedYieldGrams,
+  });
+
+  final List<LoggedComponent> components;
+  final double? suggestedYieldGrams;
+
+  @override
+  ConsumerState<_RecipeSaveSheet> createState() => _RecipeSaveSheetState();
+}
+
+class _RecipeSaveSheetState extends ConsumerState<_RecipeSaveSheet> {
+  final _name = TextEditingController();
+  late final TextEditingController _yield;
+  bool _busy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _yield = TextEditingController(
+      text: widget.suggestedYieldGrams == null
+          ? ''
+          : widget.suggestedYieldGrams!.toStringAsFixed(0),
+    );
+  }
+
+  @override
+  void dispose() {
+    _name.dispose();
+    _yield.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    final yieldGrams = double.tryParse(_yield.text.trim()) ?? 0;
+    if (_name.text.trim().isEmpty || yieldGrams <= 0) return;
+    setState(() => _busy = true);
+    final services = await ref.read(appServicesProvider.future);
+    await services.recipes.save(
+      name: _name.text,
+      components: widget.components,
+      yieldGrams: yieldGrams,
+    );
+    if (mounted) Navigator.of(context).pop(true);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final muted = scheme.onSurface.withValues(alpha: 0.6);
+    final ingredientGrams =
+        widget.components.fold<double>(0, (a, c) => a + c.grams);
+    final live = ref.watch(liveGramsProvider).valueOrNull;
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        MananuSpacing.xl,
+        0,
+        MananuSpacing.xl,
+        MediaQuery.of(context).viewInsets.bottom + MananuSpacing.xl,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Text('Save as a recipe', style: MananuType.title),
+          const SizedBox(height: MananuSpacing.sm),
+          Text(
+            '${widget.components.length} '
+            '${widget.components.length == 1 ? 'ingredient' : 'ingredients'}, '
+            '${ingredientGrams.toStringAsFixed(0)} g in. Now put the finished '
+            'dish on the scale: what it weighs cooked is what a portion is '
+            'measured against.',
+            style: MananuType.body.copyWith(color: muted),
+          ),
+          const SizedBox(height: MananuSpacing.lg),
+          TextField(
+            controller: _name,
+            textCapitalization: TextCapitalization.sentences,
+            decoration: const InputDecoration(
+              labelText: 'Name',
+              hintText: 'Chicken tikka',
+              border: OutlineInputBorder(),
+            ),
+            onChanged: (_) => setState(() {}),
+          ),
+          const SizedBox(height: MananuSpacing.md),
+          TextField(
+            controller: _yield,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: InputDecoration(
+              labelText: 'Finished dish, grams',
+              border: const OutlineInputBorder(),
+              suffixIcon: live != null && live.grams > 0
+                  ? TextButton(
+                      onPressed: () => setState(
+                        () => _yield.text = live.grams.toStringAsFixed(0),
+                      ),
+                      child: Text('Use ${live.grams.toStringAsFixed(0)} g'),
+                    )
+                  : null,
+            ),
+            onChanged: (_) => setState(() {}),
+          ),
+          const SizedBox(height: MananuSpacing.lg),
+          FilledButton(
+            onPressed: _busy ||
+                    _name.text.trim().isEmpty ||
+                    (double.tryParse(_yield.text.trim()) ?? 0) <= 0
+                ? null
+                : _save,
+            child: const Text('Save recipe'),
+          ),
+        ],
       ),
     );
   }
@@ -949,20 +1120,25 @@ class _FoodSearchSheetState extends ConsumerState<_FoodSearchSheet> {
   }
 }
 
-class _FoodResultTile extends StatelessWidget {
+class _FoodResultTile extends ConsumerWidget {
   const _FoodResultTile({required this.food, required this.onTap});
 
   final FoodItem food;
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final scheme = Theme.of(context).colorScheme;
     final n = food.per100g;
+    // "We've learned your usual portion": the median of this person's own
+    // weighings, once there are five. Ground truth a photo app never has.
+    final usual = ref.watch(usualPortionProvider(food.id)).valueOrNull;
     final parts = <String>[
       '${n.kcal.round()} kcal / 100 ${food.per100ml ? 'ml' : 'g'}',
       if (n.proteinG != null) '${n.proteinG!.toStringAsFixed(0)} g protein',
       food.source.label,
+      if (usual != null)
+        'usually ${usual.grams.toStringAsFixed(0)} g (${usual.samples} weighings)',
     ];
     return ListTile(
       title: Text(

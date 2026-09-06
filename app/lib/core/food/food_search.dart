@@ -31,6 +31,7 @@ class FoodSearch {
     required this.catalog,
     required this.userFoods,
     this.fallback = const [],
+    this.recipes,
   });
 
   /// Null when the build has no catalogue.
@@ -40,17 +41,32 @@ class FoodSearch {
   /// Searched only when there is no catalogue: the starter list.
   final List<FoodItem> fallback;
 
+  /// The user's recipes as foods (per 100 g of the finished dish). They win
+  /// over everything: a person who saved "Mum's dal" wants that one.
+  final Future<List<FoodItem>> Function()? recipes;
+
   Future<FoodSearchResult> search(String query, {int limit = 30}) async {
     final trimmed = query.trim();
+    final saved = await recipes?.call() ?? const <FoodItem>[];
     if (trimmed.isEmpty) {
+      final recent = await userFoods.recentlyLogged();
+      final seenRecent = recent.map((f) => f.id).toSet();
       return FoodSearchResult(
         query: '',
-        items: await userFoods.recentlyLogged(),
+        items: [
+          ...recent,
+          for (final r in saved)
+            if (!seenRecent.contains(r.id)) r,
+        ],
         catalogueAvailable: catalog != null,
       );
     }
-    final own = await userFoods.search(trimmed, limit: 8);
     final norm = normaliseFoodName(trimmed);
+    final own = [
+      for (final r in saved)
+        if (normaliseFoodName(r.displayName).contains(norm)) r,
+      ...await userFoods.search(trimmed, limit: 8),
+    ];
     final fromCatalog = catalog?.search(trimmed, limit: limit) ??
         [
           for (final f in fallback)

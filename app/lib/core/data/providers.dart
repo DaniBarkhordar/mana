@@ -32,12 +32,13 @@ import '../scale/lefu_driver.dart';
 import '../scale/pairing.dart';
 import '../scale/scale_driver.dart';
 import 'account_actions.dart';
-import 'db/database.dart';
+import 'db/database.dart' hide Recipe;
 import 'models.dart';
 import 'repositories/body_repository.dart';
 import 'repositories/meal_repository.dart';
 import 'repositories/observation_repository.dart';
 import 'repositories/profile_repository.dart';
+import 'repositories/recipe_repository.dart';
 import 'repositories/user_food_repository.dart';
 import 'sync/supabase_sync_remote.dart';
 import 'sync/sync_engine.dart';
@@ -59,7 +60,10 @@ export '../billing/entitlements.dart'
         PlusStatus,
         PurchaseCancelled;
 export '../health/health_importer.dart' show HealthImporter, HealthKind;
+export '../nutrition/portion.dart' show Recipe;
 export 'account_actions.dart' show AccountActions, DataExporter;
+export 'repositories/recipe_repository.dart'
+    show RecipeRepository, UsualPortion;
 export 'models.dart';
 export 'sync/sync_engine.dart' show SyncOutcome, SyncReport;
 
@@ -96,6 +100,7 @@ class AppServices {
     required this.body,
     required this.observations,
     required this.userFoods,
+    required this.recipes,
     this.sync,
     this.supabase,
   });
@@ -117,6 +122,7 @@ class AppServices {
       body: BodyRepository(db, observations),
       observations: observations,
       userFoods: UserFoodRepository(db),
+      recipes: RecipeRepository(db),
       sync: sync,
       supabase: supabase,
     );
@@ -128,6 +134,7 @@ class AppServices {
   final BodyRepository body;
   final ObservationRepository observations;
   final UserFoodRepository userFoods;
+  final RecipeRepository recipes;
 
   /// Null when no backend is configured: the app is local-only.
   final SyncScheduler? sync;
@@ -355,7 +362,23 @@ final foodSearchProvider = FutureProvider<FoodSearch>((ref) async {
     catalog: catalog,
     userFoods: services.userFoods,
     fallback: starterFoods,
+    recipes: services.recipes.asFoodItems,
   );
+});
+
+/// The user's recipes, newest first.
+final recipesProvider = StreamProvider<List<Recipe>>((ref) async* {
+  final services = await ref.watch(appServicesProvider.future);
+  yield* services.recipes.watchAll();
+});
+
+/// "Usually 75 g" for a food, once five weighings exist. Re-read when meals
+/// change.
+final usualPortionProvider =
+    FutureProvider.family<UsualPortion?, String>((ref, foodId) async {
+  final services = await ref.watch(appServicesProvider.future);
+  ref.watch(todaysMealsProvider);
+  return UsualPortion.forFood(services.db, foodId);
 });
 
 final openFoodFactsProvider = Provider<OpenFoodFactsClient>((ref) {

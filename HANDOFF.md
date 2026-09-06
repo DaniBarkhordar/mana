@@ -180,9 +180,9 @@ The roadmap includes a WHOOP-style band. **Do not build one for launch** — the
 
 ## Phase 6 — Finishing the loop
 
-- **Recipes screen.** The model in `core/nutrition/portion.dart` is complete and tested; it needs a UI. This is the highest-retention feature in the product: weigh the ingredients once, then log a portion by weight forever. Make sure the user weighs the *finished dish* for `yieldGrams` — water boils off and fat renders out, and using the ingredient sum understates concentration on every portion, forever.
-- **Personal calibration.** `PersonalCalibration.fit` is written. Feed it the `(estimated_grams, weighed_grams)` pairs the schema already indexes for. Surface it as "we've learned your usual portion" once there are five samples for a food.
-- **Charts.** `fl_chart` is in `pubspec.yaml`. Body screen wants the rolling median as a line with raw readings as faint dots behind it — the trend is the signal, the dots show the noise honestly.
+- ~~**Recipes screen.**~~ **Done.** Weigh the ingredients on Weigh food, tap the recipe icon, name it and weigh the finished dish (the live reading is offered as the yield). `RecipeRepository` stores per 100 g of the finished dish plus the ingredient list as JSON, tombstones on delete, and exposes recipes as foods so logging a portion is search + weigh — the existing flow. Recipes list under Settings → Cooking. Plus-gated where purchases are configured. Six tests.
+- ~~**Personal calibration.**~~ **Done, in the form that has data.** `UsualPortion.forFood` takes the median of a person's own weighings of a food after five samples and shows "usually 75 g (6 weighings)" on the search tile. `UsualPortion.calibrationFor` fits `PersonalCalibration` from stored `(estimated_grams, grams)` pairs for when an estimate precedes a weighing.
+- ~~**Charts.**~~ **Done** in Design v2: the Body screen's 30-day median line over faint raw dots.
 - **Widgets and a watch complication** — later, but the daily weigh-in is a good widget.
 
 ---

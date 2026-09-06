@@ -5,6 +5,7 @@ import '../../core/data/providers.dart';
 import '../../core/scale/scale_driver.dart';
 import '../../theme/instruments.dart';
 import '../../theme/tokens.dart';
+import '../food/recipes_screen.dart';
 import 'account_screen.dart';
 import 'paywall_screen.dart';
 import 'scale_pairing_sheet.dart';
@@ -65,6 +66,23 @@ class SettingsScreen extends ConsumerWidget {
                       const _DemoScaleTile(),
                     ],
                   ],
+                ),
+              ),
+            ),
+            const SizedBox(height: MananuSpacing.xl),
+            MananuSection(
+              title: 'Cooking',
+              child: Card(
+                child: _NavTile(
+                  icon: Icons.menu_book_outlined,
+                  title: 'Recipes',
+                  subtitle: 'Weigh a dish once, log a portion by weight '
+                      'forever.',
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => const RecipesScreen(),
+                    ),
+                  ),
                 ),
               ),
             ),
