@@ -1,0 +1,67 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  flutter:
+    name: Flutter analyze and test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - run: dart format --output=none --set-exit-if-changed lib test
+      - run: flutter analyze
+      # The screenshot tests run as ordinary tests here (no PNGs, test font).
+      - run: flutter test --reporter expanded
+
+  core:
+    name: Independent maths and byte-parsing check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python3 scripts/verify_core.py
+      - run: pip install openpyxl
+      - run: python3 -m pytest -q scripts/test_build_food_db.py || python3 scripts/test_build_food_db.py
+
+  functions:
+    name: Edge Functions type-check and test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: identify-food
+        working-directory: supabase/functions/identify-food
+        run: deno task check && deno task test
+      - name: revenuecat-webhook
+        working-directory: supabase/functions/revenuecat-webhook
+        run: deno task check && deno task test
+
+  design:
+    name: Design canvas is in step with its generator
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python3 design/build_canvas.py
+      - run: git diff --exit-code -- design/canvas

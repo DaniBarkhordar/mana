@@ -54,7 +54,7 @@
       "x": 2820,
       "y": 0,
       "w": 390,
-      "h": 1280
+      "h": 1980
     },
     {
       "file": "TodayDark.dc.html",
@@ -66,16 +66,48 @@
     },
     {
       "file": "Recipes.dc.html",
-      "title": "Recipes \u00b7 planned (phase 6)",
+      "title": "Recipes",
+      "x": 2350,
+      "y": 2180,
+      "w": 390,
+      "h": 844
+    },
+    {
+      "file": "Pairing.dc.html",
+      "title": "Pair a scale",
       "x": 470,
       "y": 2180,
       "w": 390,
       "h": 844
     },
     {
+      "file": "Account.dc.html",
+      "title": "Account",
+      "x": 940,
+      "y": 2180,
+      "w": 390,
+      "h": 844
+    },
+    {
+      "file": "Paywall.dc.html",
+      "title": "Mananu Plus",
+      "x": 1410,
+      "y": 2180,
+      "w": 390,
+      "h": 1100
+    },
+    {
+      "file": "Sources.dc.html",
+      "title": "Connected sources",
+      "x": 1880,
+      "y": 2180,
+      "w": 390,
+      "h": 1320
+    },
+    {
       "file": "Components.dc.html",
       "title": "Components",
-      "x": 940,
+      "x": 2820,
       "y": 2180,
       "w": 900,
       "h": 760
@@ -104,11 +136,11 @@
       "text": "Body: the trend leads, the reading follows. Median line over faint raw dots so the noise is visible and honest; every tile opens its caveat and citation."
     },
     {
-      "id": "note-recipes",
+      "id": "note-row2",
       "x": 470,
-      "y": 1900,
-      "w": 390,
-      "text": "Recipes is a proposal for the Phase 6 screen. The model already exists in core/nutrition/portion.dart."
+      "y": 2070,
+      "w": 440,
+      "text": "Second row: the screens behind Settings. Pairing is the only place a scale is chosen. Account links the temporary user rather than creating a second one. Plus leads with what is free. Sources names the device behind every value."
     }
   ],
   "launch": {

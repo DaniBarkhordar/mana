@@ -16,7 +16,13 @@ import 'package:mananu/core/data/providers.dart';
 import 'package:mananu/core/food/food_catalog.dart';
 import 'package:mananu/core/nutrition/models.dart';
 import 'package:mananu/core/nutrition/portion.dart';
+import 'package:mananu/core/scale/scale_driver.dart';
+import 'package:mananu/features/food/recipes_screen.dart';
 import 'package:mananu/features/food/weigh_food_screen.dart';
+import 'package:mananu/features/settings/account_screen.dart';
+import 'package:mananu/features/settings/paywall_screen.dart';
+import 'package:mananu/features/settings/scale_pairing_sheet.dart';
+import 'package:mananu/features/settings/sources_screen.dart';
 import 'package:mananu/theme/tokens.dart';
 
 /// Renders the real screens at phone size and writes PNGs, so the design can
@@ -75,13 +81,18 @@ void main() {
           appServicesProvider.overrideWith((ref) async => services),
           foodCatalogProvider.overrideWith((ref) async => catalog),
         ],
-        child: MaterialApp(
-          debugShowCheckedModeBanner: false,
-          theme: themed(MananuTheme.light()),
-          darkTheme: themed(MananuTheme.dark()),
-          themeMode:
-              brightness == Brightness.dark ? ThemeMode.dark : ThemeMode.light,
-          home: home,
+        // The boundary sits above the Navigator so sheets and dialogs are in
+        // the picture too.
+        child: RepaintBoundary(
+          child: MaterialApp(
+            debugShowCheckedModeBanner: false,
+            theme: themed(MananuTheme.light()),
+            darkTheme: themed(MananuTheme.dark()),
+            themeMode: brightness == Brightness.dark
+                ? ThemeMode.dark
+                : ThemeMode.light,
+            home: home,
+          ),
         ),
       );
 
@@ -184,6 +195,80 @@ void main() {
         );
     await tester.pump(const Duration(milliseconds: 300));
     await shoot(tester, 'weigh-food');
+    await shutDown(tester);
+  });
+
+  testWidgets('account', (tester) async {
+    await phone(tester);
+    await tester.pumpWidget(
+      app(home: const RepaintBoundary(child: AccountScreen())),
+    );
+    await shoot(tester, 'account');
+    await shutDown(tester);
+  });
+
+  testWidgets('paywall', (tester) async {
+    await phone(tester);
+    await tester.pumpWidget(
+      app(home: const RepaintBoundary(child: PaywallScreen())),
+    );
+    await shoot(tester, 'paywall');
+    await shutDown(tester);
+  });
+
+  testWidgets('sources', (tester) async {
+    await phone(tester);
+    await tester.pumpWidget(
+      app(home: const RepaintBoundary(child: SourcesScreen())),
+    );
+    await shoot(tester, 'sources');
+    await shutDown(tester);
+  });
+
+  testWidgets('recipes', (tester) async {
+    await phone(tester);
+    await tester.runAsync(
+      () => services.recipes.save(
+        name: 'Chicken tikka',
+        components: (WeighSession()
+              ..addTared(food: _chicken, grams: 500)
+              ..addTared(food: _yogurt, grams: 150)
+              ..addTared(food: _oil, grams: 15))
+            .components,
+        yieldGrams: 560,
+      ),
+    );
+    await tester.pumpWidget(
+      app(home: const RepaintBoundary(child: RecipesScreen())),
+    );
+    await shoot(tester, 'recipes');
+    await shutDown(tester);
+  });
+
+  testWidgets('pairing sheet', (tester) async {
+    await phone(tester);
+    await tester.pumpWidget(
+      app(
+        home: RepaintBoundary(
+          child: Builder(
+            builder: (context) => Scaffold(
+              body: Center(
+                child: FilledButton(
+                  onPressed: () =>
+                      ScalePairingSheet.show(context, ScaleKind.body),
+                  child: const Text('Pair'),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.tap(find.text('Pair'));
+    // The demo scale advertises after a short delay.
+    await tester.pump(const Duration(milliseconds: 600));
+    await shoot(tester, 'pairing');
     await shutDown(tester);
   });
 

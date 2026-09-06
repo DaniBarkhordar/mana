@@ -105,6 +105,14 @@ def icon(name, size=24, color="currentColor", stroke=1.8):
         "trash": '<path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6M10 11v6M14 11v6"/>',
         "close": '<path d="M18 6L6 18M6 6l12 12"/>',
         "refresh": '<path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/>',
+        "person": '<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"/>',
+        "star": '<path d="M12 2.5l2.9 6 6.6.9-4.8 4.6 1.2 6.5L12 17.4 6.1 20.5l1.2-6.5L2.5 9.4l6.6-.9z"/>',
+        "heart": '<path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8z"/>',
+        "cloud": '<path d="M18 10h-1.3A6 6 0 0 0 5 12a4 4 0 0 0 1 8h12a5 5 0 0 0 0-10z"/>',
+        "flask": '<path d="M9 3h6M10 3v6L4.5 19a1.5 1.5 0 0 0 1.3 2.2h12.4a1.5 1.5 0 0 0 1.3-2.2L14 9V3"/>',
+        "tune": '<path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/>',
+        "link-off": '<path d="M9 15l6-6M10.5 6.5l1-1a4 4 0 0 1 5.7 5.7l-1 1M13.5 17.5l-1 1a4 4 0 0 1-5.7-5.7l1-1M2 2l20 20"/>',
+        "apple": '<path d="M16.4 12.7c0-2.6 2.1-3.8 2.2-3.9-1.2-1.8-3.1-2-3.7-2-1.6-.2-3.1.9-3.9.9-.8 0-2-.9-3.4-.9-1.7 0-3.3 1-4.2 2.6-1.8 3.1-.5 7.8 1.3 10.3.9 1.2 1.9 2.6 3.2 2.6 1.3-.1 1.8-.8 3.4-.8 1.6 0 2 .8 3.4.8 1.4 0 2.3-1.3 3.1-2.5 1-1.4 1.4-2.8 1.4-2.9-.1 0-2.8-1.1-2.8-4.2zM13.9 5.1c.7-.9 1.2-2 1.1-3.2-1 0-2.3.7-3 1.6-.7.8-1.2 2-1.1 3.1 1.1.1 2.3-.6 3-1.5z"/>',
         "back": '<path d="M19 12H5M12 19l-7-7 7-7"/>',
         "recipe": '<path d="M6 3v18M6 3c3 0 4 2 4 5s-1 5-4 5M18 3v18M18 3c-2 0-3 4-3 7s1 3 3 3"/>',
         "restaurant": '<path d="M7 2v20M7 2c2 0 3 2 3 5s-1 5-3 5-3-2-3-5 1-5 3-5zM17 2v20M17 2c-1.5 0-3 3-3 7 0 2 1 3 3 3"/>',
@@ -724,6 +732,29 @@ Bioimpedance is good at showing change over weeks and poor at absolute figures f
     return doc(inner, p, height=height)
 
 
+def toggle(p, on=True):
+    bg = BRASS if on else p["line"]
+    knob = "right:2px" if on else "left:2px"
+    return (
+        f'<div style="position:relative;width:44px;height:26px;border-radius:13px;background:{bg};flex:none;">'
+        f'<div style="position:absolute;top:2px;{knob};width:22px;height:22px;border-radius:11px;background:#FFFFFF;box-shadow:0 1px 3px rgba(13,16,18,0.25);"></div></div>'
+    )
+
+
+def settings_row(p, name, title, subtitle, trailing="", danger=False, last=False, hi=False):
+    border = "" if last else f"border-bottom:1px solid {p['line']};"
+    c = DANGER if danger else p["on"]
+    tr = trailing or icon("chevron", 20, alpha(p, 0.4))
+    return f"""<div style="display:flex;align-items:center;gap:16px;padding:12px 16px;{border}">
+  {icon(name, 21, BRASS if hi else c)}
+  <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;">
+    <div style="{T_BODY_STRONG}color:{c};">{title}</div>
+    <div style="{T_CAPTION}color:{alpha(p, 0.6)};text-wrap:pretty;">{subtitle}</div>
+  </div>
+  {tr}
+</div>"""
+
+
 def settings(p, height=None):
     def device(title, subtitle, connected, last=False):
         border = "" if last else f"border-bottom:1px solid {p['line']};"
@@ -732,32 +763,32 @@ def settings(p, height=None):
   <div style="width:9px;height:9px;border-radius:999px;background:{dot};margin-top:7px;flex:none;"></div>
   <div style="flex:1;display:flex;flex-direction:column;gap:2px;">
     <div style="{T_BODY_STRONG}color:{p['on']};">{title}</div>
-    <div style="{T_CAPTION}color:{alpha(p, 0.6)};">{subtitle}</div>
+    <div style="{T_CAPTION}color:{alpha(p, 0.6)};text-wrap:pretty;">{subtitle}</div>
   </div>
   <div style="{T_CAPTION}color:{alpha(p, 0.6)};white-space:nowrap;margin-top:2px;">{"Connected" if connected else "Not connected"}</div>
 </div>"""
 
-    def nav(name, title, subtitle, danger=False, last=False):
-        border = "" if last else f"border-bottom:1px solid {p['line']};"
-        c = DANGER if danger else p["on"]
-        return f"""<div style="display:flex;align-items:center;gap:16px;padding:12px 16px;{border}">
-  {icon(name, 21, c)}
-  <div style="flex:1;display:flex;flex-direction:column;gap:2px;">
-    <div style="{T_BODY_STRONG}color:{c};">{title}</div>
-    <div style="{T_CAPTION}color:{alpha(p, 0.6)};">{subtitle}</div>
-  </div>
-  {icon("chevron", 20, alpha(p, 0.5))}
-</div>"""
-
     scales = section(p, "Your scales", card(p,
-        device("Body scale", "Bare feet, hard floor, same time each morning", True)
-        + device("Kitchen scale", "Tare between ingredients, or let Mananu take the difference", False, last=True),
+        device("Body scale", "Mananu Body · Bare feet, hard floor, same time each morning", True)
+        + device("Kitchen scale", "Mananu Kitchen · Tare between ingredients, or let Mananu take the difference", False)
+        + settings_row(p, "flask", "Demo scale", "A simulated scale for trying the app without hardware. Readings from it are labelled as simulated.", trailing=toggle(p, False), last=True),
     ))
+    cooking = section(p, "Cooking", card(p,
+        settings_row(p, "recipe", "Recipes", "Weigh a dish once, log a portion by weight forever.", last=True),
+    ))
+    wearables = section(p, "Wearables", card(p,
+        settings_row(p, "heart", "Connected sources", "Health connected. Sleep, heart and steps arrive on the same timeline as your readings.", last=True),
+    ))
+    sign_in = f'<div style="{T_CAPTION}font-weight:600;color:{BRASS};white-space:nowrap;">Sign in</div>'
+    sync_now = f'<div style="{T_CAPTION}font-weight:600;color:{BRASS};white-space:nowrap;">Sync now</div>'
     data = section(p, "Your data", card(p,
-        nav("shield", "Body composition consent", "Withdraw at any time. Weight and food logging keep working without it.")
-        + nav("sparkle", "Photo recognition", "Meal photos are sent to our AI provider only when you take one. Turn this off and search still works.")
-        + nav("download", "Export everything", "Every measurement and meal, as CSV")
-        + nav("trash", "Delete my account", "Erased, not hidden. This cannot be undone.", danger=True, last=True),
+        settings_row(p, "person", "Account", "Temporary account. Sign in to keep your diary if you lose this phone.", trailing=sign_in)
+        + settings_row(p, "star", "Mananu Plus", "Thirty photo scans a month are free. Plus removes the limit and adds recipes and calibration.")
+        + settings_row(p, "cloud", "Backup", "Everything is backed up.", trailing=sync_now)
+        + settings_row(p, "shield", "Body composition", "Body fat, muscle and water are worked out from your scale's impedance. Switch off at any time; weight keeps working.", trailing=toggle(p, True))
+        + settings_row(p, "sparkle", "Photo recognition", "A photo goes to Anthropic (Claude) only when you take one, to name the food. Nothing else is sent.", trailing=toggle(p, True))
+        + settings_row(p, "download", "Export everything", "Every measurement and meal, as CSV")
+        + settings_row(p, "trash", "Delete my account", "Erased, not hidden. This cannot be undone.", danger=True, last=True),
     ))
     about = section(p, "About", card(p, f"""<div style="{T_CAPTION}color:{WARNING};text-wrap:pretty;">Mananu is not a medical device. It does not diagnose, treat, cure or prevent any disease. Do not use the body scale if you have a pacemaker or another implanted electronic device.</div>
 <div style="height:12px;"></div>
@@ -765,40 +796,183 @@ def settings(p, height=None):
 
     inner = f"""{status_space()}
 {header(p, "Settings", "mananu")}
-{scroll(scales + data + about)}
+{scroll(scales + cooking + wearables + data + about)}
 {nav_bar(p, "settings")}
 {fab(p)}
 """
     return doc(inner, p, height=height)
 
 
-def recipes(p, height=None):
-    def recipe(name, per100, yield_g, portions, last=False):
+def pairing(p, height=None):
+    # Settings underneath, the pairing sheet on top: the only place a scale
+    # is ever chosen, so a neighbour's scale is never picked up by accident.
+    def row(name, detail, last=False):
         border = "" if last else f"border-bottom:1px solid {p['line']};"
-        return f"""<div style="display:flex;align-items:center;gap:12px;padding:12px 16px;{border}">
-  <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:4px;">
+        return f"""<div style="display:flex;align-items:center;gap:16px;padding:12px 16px;{border}">
+  {icon("scale", 22, p['on'])}
+  <div style="flex:1;display:flex;flex-direction:column;gap:2px;">
     <div style="{T_BODY_STRONG}color:{p['on']};">{name}</div>
-    <div style="display:flex;align-items:center;gap:8px;">{badge(p, True, dense=True)}<div style="{T_CAPTION}color:{alpha(p, 0.6)};white-space:nowrap;">{per100} kcal / 100 g</div></div>
-    <div style="{T_CAPTION}color:{alpha(p, 0.45)};">Finished dish {yield_g} g</div>
+    <div style="{T_CAPTION}color:{alpha(p, 0.6)};">{detail}</div>
   </div>
-  <div style="height:40px;padding:0 14px;display:flex;align-items:center;border-radius:14px;border:1px solid {p['line']};{T_CAPTION}font-weight:600;color:{p['on']};white-space:nowrap;flex:none;">Log a portion</div>
+  {icon("chevron", 22, alpha(p, 0.4))}
 </div>"""
 
-    explain = card(p, f"""<div style="display:flex;gap:12px;align-items:flex-start;">
-  {icon("weighed", 20, BRASS, 2)}
-  <div style="{T_CAPTION}color:{alpha(p, 0.7)};text-wrap:pretty;">Weigh the ingredients once, then weigh the finished dish. From then on a plated portion is one number off the scale, correct forever.</div>
-</div>""", padding="16px")
+    sheet = f"""<div style="position:absolute;inset:0;background:rgba(13,16,18,0.32);"></div>
+<div style="position:absolute;left:0;right:0;bottom:0;top:300px;background:{p['surface']};border-radius:28px 28px 0 0;padding:8px 24px 24px 24px;display:flex;flex-direction:column;overflow:hidden;">
+  <div style="align-self:center;width:32px;height:4px;border-radius:999px;background:{p['mist']};opacity:0.6;flex:none;"></div>
+  <div style="height:16px;"></div>
+  <div style="{T_TITLE}color:{p['on']};">Pair your body scale</div>
+  <div style="height:8px;"></div>
+  <div style="{T_BODY}color:{alpha(p, 0.6)};text-wrap:pretty;">Step on the scale so it wakes up, then choose it below.</div>
+  <div style="height:16px;"></div>
+  {card(p, row("Mananu Body", "CF577 · Right here") + row("CF577", "Weak signal", last=True))}
+  <div style="height:12px;"></div>
+  <div style="display:flex;align-items:center;gap:8px;">
+    <div style="width:14px;height:14px;border-radius:999px;border:2px solid {BRASS};border-top-color:transparent;"></div>
+    <div style="{T_CAPTION}color:{alpha(p, 0.6)};">Still looking…</div>
+  </div>
+  <div style="height:16px;"></div>
+  <div style="{T_CAPTION}color:{alpha(p, 0.45)};text-wrap:pretty;">Mananu only ever connects to the scale you choose here. Readings from anyone else's scale are never picked up.</div>
+</div>"""
+    base = settings(p, height=844)
+    return base.replace("\n</div>\n</x-dc>", "\n" + sheet + "\n</div>\n</x-dc>", 1)
 
-    lst = section(p, "Your recipes", card(p,
-        recipe("Chicken and rice", 226, 400, 2)
-        + recipe("Overnight oats", 142, 250, 1)
-        + recipe("Dal", 118, 1160, 4, last=True),
-    ))
+
+def account(p, height=None):
+    status = card(p, f"""<div style="display:flex;align-items:center;gap:16px;">
+  {mark(p, 24)}
+  <div style="flex:1;display:flex;flex-direction:column;gap:2px;">
+    <div style="{T_HEADING}color:{p['on']};">Temporary account</div>
+    <div style="{T_CAPTION}color:{alpha(p, 0.6)};">Backed up, but only reachable from this phone.</div>
+  </div>
+  {icon("cloud", 24, alpha(p, 0.6))}
+</div>""", padding="24px")
+    email = card(p, f"""<div style="{T_HEADING}color:{p['on']};">Or use your email</div>
+<div style="height:4px;"></div>
+<div style="{T_CAPTION}color:{alpha(p, 0.6)};">We will send a code. No password.</div>
+<div style="height:12px;"></div>
+<div style="height:54px;border:1px solid {p['line']};border-radius:8px;padding:0 14px;display:flex;align-items:center;{T_BODY}color:{alpha(p, 0.45)};">Email</div>
+<div style="height:12px;"></div>
+{filled_button(p, "Send code")}""", padding="16px")
+    inner = f"""{status_space()}
+{app_bar(p, "Account", leading=icon_button(p, "back"))}
+<div style="flex:1;overflow:hidden;"><div style="display:flex;flex-direction:column;gap:0;padding:8px 16px 48px 16px;">
+{status}
+<div style="height:24px;"></div>
+<div style="{T_BODY}color:{alpha(p, 0.6)};text-wrap:pretty;">Sign in to keep your diary if you lose this phone or get a new one. Nothing is re-entered: the account you create simply becomes this one.</div>
+<div style="height:24px;"></div>
+{filled_button(p, "Sign in with Apple", "apple")}
+<div style="height:12px;"></div>
+{outlined_button(p, "Continue with Google")}
+<div style="height:24px;"></div>
+{email}
+<div style="height:32px;"></div>
+<div style="{T_CAPTION}color:{alpha(p, 0.45)};text-wrap:pretty;">Mananu asks for the least it can: Apple and Google share only an identifier, and you can hide your email from us. No password to remember, nothing to reset.</div>
+</div></div>
+"""
+    return doc(inner, p, height=height)
+
+
+def paywall(p, height=None):
+    def included(name, title, detail):
+        return f"""<div style="display:flex;gap:12px;align-items:flex-start;padding:8px 0;">
+  {icon(name, 22, BRASS)}
+  <div style="flex:1;display:flex;flex-direction:column;">
+    <div style="{T_BODY_STRONG}color:{p['on']};">{title}</div>
+    <div style="{T_CAPTION}color:{alpha(p, 0.6)};text-wrap:pretty;">{detail}</div>
+  </div>
+</div>"""
+
+    def offer(label, price, per, selected, note=None):
+        bg = BRASS_SOFT if selected else p["surface"]
+        bd = f"1.5px solid {BRASS}" if selected else f"1px solid {p['line']}"
+        radio = (
+            f'<div style="width:22px;height:22px;border-radius:11px;border:2px solid {BRASS};display:flex;align-items:center;justify-content:center;"><div style="width:11px;height:11px;border-radius:6px;background:{BRASS};"></div></div>'
+            if selected else
+            f'<div style="width:22px;height:22px;border-radius:11px;border:2px solid {p["line"]};"></div>'
+        )
+        n = f'<div style="{T_CAPTION}color:{BRASS};">{note}</div>' if note else ""
+        return f"""<div style="display:flex;align-items:center;gap:12px;padding:16px;border-radius:14px;background:{bg};border:{bd};">
+  {radio}
+  <div style="flex:1;display:flex;flex-direction:column;"><div style="{T_BODY_STRONG}color:{p['on']};">{label}</div>{n}</div>
+  <div style="{T_NUMBER}font-size:17px;color:{p['on']};white-space:nowrap;">{price} {per}</div>
+</div>"""
+
+    inner = f"""{status_space()}
+{app_bar(p, "Mananu Plus", leading=icon_button(p, "close"))}
+<div style="flex:1;overflow:hidden;"><div style="display:flex;flex-direction:column;padding:8px 16px 48px 16px;">
+{mark(p, 28)}
+<div style="height:16px;"></div>
+<div style="{T_DISPLAY}font-size:32px;color:{p['on']};">The scale is free. Forever.</div>
+<div style="height:8px;"></div>
+<div style="{T_BODY}color:{alpha(p, 0.6)};text-wrap:pretty;">Weighing, barcodes, manual logging, your targets and your body trends never cost anything. Plus is for the parts that cost us something to run.</div>
+<div style="height:24px;"></div>
+{card(p, included("camera", "Photo recognition without limit", "Thirty scans a month are free. Plus removes the limit. The photo only ever names the food; the grams stay on the scale.") + included("recipe", "Recipes", "Weigh the ingredients once, weigh the finished dish, then log a portion by weight forever.") + included("tune", "Personal calibration", "After five weighings of a food, Mananu learns your usual portion and says so when you estimate."), padding="8px 16px")}
+<div style="height:24px;"></div>
+{offer("Yearly", "£39.99", "a year", True, "Two months free against monthly")}
+<div style="height:8px;"></div>
+{offer("Monthly", "£4.99", "a month", False)}
+<div style="height:16px;"></div>
+{filled_button(p, "Continue · £39.99 a year")}
+<div style="height:8px;"></div>
+<div style="height:40px;display:flex;align-items:center;justify-content:center;{T_BODY_STRONG}color:{BRASS};">Restore purchases</div>
+<div style="height:16px;"></div>
+<div style="{T_CAPTION}color:{alpha(p, 0.45)};text-wrap:pretty;">Renews automatically until cancelled. Cancel any time in your App Store or Google Play subscriptions; nothing renews without the store telling you first. A Plus subscription bundled with a scale lapses to free when it ends, never to full price.</div>
+</div></div>
+"""
+    return doc(inner, p, height=height)
+
+
+def sources(p, height=None):
+    import_now = f'<div style="{T_CAPTION}font-weight:600;color:{BRASS};white-space:nowrap;">Import now</div>'
+    health = card(p,
+        settings_row(p, "heart", "Connected", "Last import Sun 6 Sep, 07:14.", trailing=import_now, hi=True)
+        + settings_row(p, "scale", "Share weight with Health", "Each scale reading, as measured. Body fat is worked out, not measured, so it stays here.", trailing=toggle(p, True))
+        + settings_row(p, "link-off", "Disconnect", "Stops reading. What was imported stays in your diary until you delete it.", trailing='<div style="width:20px;"></div>', last=True),
+    )
+    def direct(name, last=False):
+        border = "" if last else f"border-bottom:1px solid {p['line']};"
+        return f"""<div style="display:flex;align-items:center;gap:16px;padding:8px 16px;{border}">
+  <div style="flex:1;display:flex;flex-direction:column;gap:2px;">
+    <div style="{T_BODY_STRONG}color:{p['on']};">{name}</div>
+    <div style="{T_CAPTION}color:{alpha(p, 0.6)};">Not yet. Until then, {name} writes to Apple Health and arrives from there.</div>
+  </div>
+  <div style="{T_CAPTION}color:{alpha(p, 0.6)};">Soon</div>
+</div>"""
+    def chip(label):
+        return f'<div style="height:32px;padding:0 12px;border-radius:8px;border:1px solid {p["line"]};display:flex;align-items:center;{T_CAPTION}color:{p["on"]};">{label}</div>'
+    inner = f"""{status_space()}
+{app_bar(p, "Connected sources", leading=icon_button(p, "back"))}
+<div style="flex:1;overflow:hidden;"><div style="display:flex;flex-direction:column;gap:24px;padding:8px 16px 48px 16px;">
+<div style="{T_BODY}color:{alpha(p, 0.6)};text-wrap:pretty;">Sleep, resting heart rate, HRV, steps and workouts from the devices you already wear, next to your scale readings on one timeline. Each value keeps the name of the device that made it.</div>
+{section(p, "Apple Health", health)}
+{section(p, "Direct connections", card(p, direct("Oura") + direct("WHOOP") + direct("Garmin") + direct("Fitbit") + direct("Polar") + direct("Withings", last=True)))}
+{section(p, "In your diary", card(p, f'<div style="display:flex;flex-wrap:wrap;gap:8px;">{chip("Apple Health")}{chip("Mananu body scale")}{chip("Mananu kitchen scale")}</div>', padding="16px"))}
+<div style="{T_CAPTION}color:{alpha(p, 0.45)};text-wrap:pretty;">Health data never reaches an analytics or advertising service, and is never used for anything like insurance or employment. That is in the privacy policy, and it is in the code.</div>
+</div></div>
+"""
+    return doc(inner, p, height=height)
+
+
+def recipes(p, height=None):
+    def recipe(name, per100, made, n, last=False):
+        return f"""{card(p, f'''<div style="display:flex;align-items:center;gap:12px;padding:12px 16px;">
+  <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;">
+    <div style="{T_BODY_STRONG}color:{p['on']};">{name}</div>
+    <div style="{T_CAPTION}color:{alpha(p, 0.6)};">{per100} kcal / 100 g · {made} g made · {n} ingredients</div>
+  </div>
+  {icon("trash", 22, alpha(p, 0.6))}
+</div>''')}{'' if last else '<div style="height:8px;"></div>'}"""
 
     inner = f"""{status_space()}
 {app_bar(p, "Recipes", leading=icon_button(p, "back"))}
-{scroll(explain + lst, bottom=24)}
-<div style="padding:0 24px 40px 24px;flex:none;">{filled_button(p, "New recipe", "plus")}</div>
+<div style="flex:1;overflow:hidden;"><div style="display:flex;flex-direction:column;padding:8px 16px 48px 16px;">
+{recipe("Chicken tikka", 207, 560, 3)}
+{recipe("Dal", 118, 1160, 6)}
+{recipe("Overnight oats", 142, 250, 4, last=True)}
+<div style="height:24px;"></div>
+<div style="{T_CAPTION}color:{alpha(p, 0.45)};text-wrap:pretty;">To log a portion, put the plate on the scale and search for the recipe by name. Made from the Weigh food screen: weigh the ingredients, tap the recipe icon, weigh the finished dish.</div>
+</div></div>
 """
     return doc(inner, p, height=height)
 
@@ -851,8 +1025,9 @@ def components(p, height=None):
 # content changes (run with MEASURE=1 to emit natural heights instead).
 HEIGHTS = {
     "Main": 1100, "Onboarding": 844, "WeighFood": 844, "PhotoScan": 844,
-    "CookingOil": 844, "Body": 2060, "Settings": 1280, "TodayDark": 1100,
-    "Recipes": 844, "Components": 760,
+    "CookingOil": 844, "Body": 2060, "Settings": 1980, "TodayDark": 1100,
+    "Recipes": 844, "Pairing": 844, "Account": 844, "Paywall": 1100,
+    "Sources": 1320, "Components": 760,
 }
 MEASURE = os.environ.get("MEASURE") == "1"
 
@@ -870,7 +1045,11 @@ ARTBOARDS = [
     ("Body", lambda: body(LIGHT, h("Body")), "Body", 390),
     ("Settings", lambda: settings(LIGHT, h("Settings")), "Settings", 390),
     ("TodayDark", lambda: today(DARK, h("TodayDark")), "Today · dark", 390),
-    ("Recipes", lambda: recipes(LIGHT, h("Recipes")), "Recipes · planned (phase 6)", 390),
+    ("Recipes", lambda: recipes(LIGHT, h("Recipes")), "Recipes", 390),
+    ("Pairing", lambda: pairing(LIGHT, h("Pairing")), "Pair a scale", 390),
+    ("Account", lambda: account(LIGHT, h("Account")), "Account", 390),
+    ("Paywall", lambda: paywall(LIGHT, h("Paywall")), "Mananu Plus", 390),
+    ("Sources", lambda: sources(LIGHT, h("Sources")), "Connected sources", 390),
     ("Components", lambda: components(LIGHT, h("Components")), "Components", 900),
 ]
 
@@ -880,7 +1059,7 @@ def main():
     layout = []
     x = 0
     row1 = ["Main", "Onboarding", "WeighFood", "PhotoScan", "CookingOil", "Body", "Settings"]
-    row2 = ["TodayDark", "Recipes", "Components"]
+    row2 = ["TodayDark", "Pairing", "Account", "Paywall", "Sources", "Recipes", "Components"]
     positions = {}
     for name in row1:
         positions[name] = (x, 0)
@@ -902,8 +1081,8 @@ def main():
              "text": "Photo scan: the model only says WHAT is on the plate. Every candidate is matched to the food database; the grams come from the scale when the user captures. No quantity is ever asked of the photo."},
             {"id": "note-body", "x": 2350, "y": -110, "w": 390,
              "text": "Body: the trend leads, the reading follows. Median line over faint raw dots so the noise is visible and honest; every tile opens its caveat and citation."},
-            {"id": "note-recipes", "x": 470, "y": 1900, "w": 390,
-             "text": "Recipes is a proposal for the Phase 6 screen. The model already exists in core/nutrition/portion.dart."},
+            {"id": "note-row2", "x": 470, "y": 2070, "w": 440,
+             "text": "Second row: the screens behind Settings. Pairing is the only place a scale is chosen. Account links the temporary user rather than creating a second one. Plus leads with what is free. Sources names the device behind every value."},
         ],
         "launch": {"view": "canvas"},
     }

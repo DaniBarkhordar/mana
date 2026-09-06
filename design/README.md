@@ -15,5 +15,7 @@ equations for one persona (178 cm, 34, male, 78.7 kg, 500 Ω) — the same perso
 `app/test/screenshots/screenshot_test.dart` seeds, so the canvas and the real
 screens can be compared side by side.
 
-Artboards: Today (light and dark), Onboarding, Weigh food, Photo scan results,
-Cooking oil, Body, Settings, Recipes (planned) and a Components sheet.
+Artboards, first row: Today, Onboarding, Weigh food, Photo scan results, Cooking
+oil, Body, Settings. Second row: Today (dark), Pair a scale, Account, Mananu
+Plus, Connected sources, Recipes, and a Components sheet. Every screen exists in
+the app; `app/test/screenshots/` renders the real ones for comparison.

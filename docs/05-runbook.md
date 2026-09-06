@@ -244,16 +244,38 @@ Bundle 12 months of Plus with the hardware, then **lapse to free**. Do not auto-
 
 **Next two weeks**
 - Place the order on neutral packaging
-- Stand up Supabase in London, deploy the Edge Function
-- Build the offline food database
-- Write the privacy policy and the DPIA
-
-**On credentials arriving**
-- Implement `PpBluetoothKitChannel`, swap the driver, test on real hardware
-- TestFlight and Play internal testing
+- Work §9 below from the top
 
 **Before first sale**
 - Technical file and Declaration of Conformity in your name
 - PSTI statement of compliance
 - WEEE and battery registration
 - Methods page published (`03-accuracy-claims.md`)
+
+## 9. Launch checklist — the founder's side of the line
+
+Everything the code needs from outside the repository, in the order that unblocks the most. Each item names the section with the detail. Nothing on this list is engineering; all of it is accounts, keys and a device.
+
+1. **Food database.** On a machine that can reach gov.uk and usda.gov: build `core.sqlite`, run `--verify`, commit it (§5). Until then search covers the person's own foods and a starter list, and Settings says so.
+2. **Supabase project in London.** `supabase db push`, enable anonymous sign-ins, deploy `identify-food` with `ANTHROPIC_API_KEY` (and `VISION_MODEL_FREE=claude-haiku-4-5` if the free tier should run cheaper), deploy `revenuecat-webhook` with its secret (§3, §3b). Verify RLS with two users (§3).
+3. **Sign-in providers.** Apple (capability on the App ID), Google (web + iOS clients, the two dart-defines), email OTP template (§3a).
+4. **RevenueCat.** Entitlement `plus`, monthly and annual packages, the two public keys as dart-defines, webhook URL and secret (§3b). Products in App Store Connect and Play Console.
+5. **Scale credentials.** Register on the Lefu Open Platform, add the model codes, download `lefu.config` into `app/assets/`, build with `LEFU_APP_KEY` / `LEFU_APP_SECRET` (§4). Pair from Settings on a real unit and check the divisor against a known mass. This is Phase 3's acceptance and the only item that needs hardware.
+6. **Health.** HealthKit capability on the App ID; Play Console Health apps declaration with the wording in `12-privacy-policy.md` (§3c).
+7. **Privacy policy** at getmananu.com/privacy from `12-privacy-policy.md` after counsel; it is required by Health Connect and by both stores.
+8. **First builds.** `flutter build ipa` / `appbundle` with the full set of dart-defines:
+
+   ```bash
+   flutter build ipa --release \
+     --dart-define=SUPABASE_URL=... --dart-define=SUPABASE_PUBLISHABLE_KEY=... \
+     --dart-define=VISION_PROVIDER="Anthropic (Claude)" \
+     --dart-define=GOOGLE_WEB_CLIENT_ID=... --dart-define=GOOGLE_IOS_CLIENT_ID=... \
+     --dart-define=REVENUECAT_IOS_KEY=... --dart-define=REVENUECAT_ANDROID_KEY=... \
+     --dart-define=LEFU_APP_KEY=... --dart-define=LEFU_APP_SECRET=...
+   ```
+
+   Then the one-time device checks: the database is out of iCloud (§6), the demo scale route works (`11-app-review-notes.md`), two accounts on one phone see separate data, delete leaves no rows (Phase 4 acceptance).
+9. **Store listings** from `13-store-listing.md`; review notes from `11-app-review-notes.md`; privacy labels matching `PrivacyInfo.xcprivacy`.
+10. **TestFlight and Play internal testing** with the bundle of Plus that ships with the hardware granted in RevenueCat.
+
+CI (`.github/workflows/ci.yml`) runs analyze, format, every test, the maths check, the food-database pipeline tests, both Edge Functions and a check that the design canvas is in step with its generator, on every push and pull request.

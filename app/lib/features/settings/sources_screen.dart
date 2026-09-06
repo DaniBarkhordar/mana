@@ -128,14 +128,26 @@ class _SourcesScreenState extends ConsumerState<SourcesScreen> {
                             onPressed: _busy ? null : _importNow,
                             child: const Text('Import now'),
                           )
-                        : FilledButton(
-                            onPressed: _busy ? null : _connect,
-                            style: FilledButton.styleFrom(
-                              minimumSize: const Size(0, 40),
-                            ),
-                            child: const Text('Connect'),
-                          ),
+                        : null,
                   ),
+                  if (!connected)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(
+                        MananuSpacing.lg,
+                        0,
+                        MananuSpacing.lg,
+                        MananuSpacing.lg,
+                      ),
+                      child: FilledButton.icon(
+                        onPressed: _busy ? null : _connect,
+                        icon: const Icon(Icons.favorite_outline),
+                        label: Text(
+                          storeName == 'Apple Health'
+                              ? 'Connect Apple Health'
+                              : 'Connect',
+                        ),
+                      ),
+                    ),
                   if (connected) ...[
                     const Divider(height: 1),
                     SwitchListTile(
