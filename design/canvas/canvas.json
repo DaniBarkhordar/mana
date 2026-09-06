@@ -1,0 +1,102 @@
+{
+  "artboards": [
+    {
+      "file": "Main.dc.html",
+      "title": "Today",
+      "x": 0,
+      "y": 0,
+      "w": 390,
+      "h": 1090
+    },
+    {
+      "file": "Onboarding.dc.html",
+      "title": "Onboarding",
+      "x": 470,
+      "y": 0,
+      "w": 390,
+      "h": 844
+    },
+    {
+      "file": "WeighFood.dc.html",
+      "title": "Weigh food",
+      "x": 940,
+      "y": 0,
+      "w": 390,
+      "h": 844
+    },
+    {
+      "file": "CookingOil.dc.html",
+      "title": "Cooking oil",
+      "x": 1410,
+      "y": 0,
+      "w": 390,
+      "h": 844
+    },
+    {
+      "file": "Body.dc.html",
+      "title": "Body",
+      "x": 1880,
+      "y": 0,
+      "w": 390,
+      "h": 2114
+    },
+    {
+      "file": "Settings.dc.html",
+      "title": "Settings",
+      "x": 2350,
+      "y": 0,
+      "w": 390,
+      "h": 1230
+    },
+    {
+      "file": "TodayDark.dc.html",
+      "title": "Today \u00b7 dark",
+      "x": 0,
+      "y": 2234,
+      "w": 390,
+      "h": 1090
+    },
+    {
+      "file": "Recipes.dc.html",
+      "title": "Recipes \u00b7 planned (phase 6)",
+      "x": 470,
+      "y": 2234,
+      "w": 390,
+      "h": 844
+    },
+    {
+      "file": "Components.dc.html",
+      "title": "Components",
+      "x": 940,
+      "y": 2234,
+      "w": 900,
+      "h": 760
+    }
+  ],
+  "annotations": [
+    {
+      "id": "note-brief",
+      "x": 0,
+      "y": -150,
+      "w": 440,
+      "text": "Mananu \u2014 app screens. Every value comes from app/lib/theme/tokens.dart: Inter, 14 px cards, 54 px buttons, brass on paper. Green is reserved for weighed values and tan for estimated ones; nothing else uses those two colours.\nBody shows the whole scrolled page; the phone shows the top 844 px."
+    },
+    {
+      "id": "note-body",
+      "x": 1880,
+      "y": -110,
+      "w": 390,
+      "text": "Trend chart is new here (Phase 6 in HANDOFF.md). Median line, raw readings as faint dots, so the noise is visible and honest."
+    },
+    {
+      "id": "note-recipes",
+      "x": 470,
+      "y": 1900,
+      "w": 390,
+      "text": "Recipes is a proposal for the Phase 6 screen. The model already exists in core/nutrition/portion.dart."
+    }
+  ],
+  "launch": {
+    "view": "canvas"
+  }
+}
