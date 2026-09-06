@@ -16,6 +16,7 @@ library;
 import 'dart:async';
 import 'dart:io' show Platform;
 
+import 'package:drift/drift.dart';
 import 'package:health/health.dart';
 
 import '../data/db/database.dart';
