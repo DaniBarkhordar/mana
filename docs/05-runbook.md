@@ -49,9 +49,33 @@ supabase init
 supabase link --project-ref <ref>          # create the project in London (eu-west-2)
 supabase db push                            # applies migrations/0001, 0002, 0003
 
-supabase secrets set GEMINI_API_KEY=...     # or ANTHROPIC_API_KEY
-supabase secrets set VISION_MODEL=gemini-2.5-flash-lite
+supabase secrets set ANTHROPIC_API_KEY=...  # the default provider
 supabase functions deploy identify-food
+```
+
+The function serves whichever key is present, Anthropic first. Everything else is optional:
+
+| Secret | Default | Meaning |
+|---|---|---|
+| `VISION_PROVIDER` | `anthropic` if its key is set, else `gemini` | Force one provider |
+| `VISION_MODEL` | `claude-opus-5` / `gemini-2.5-flash-lite` | Model for every request |
+| `VISION_MODEL_FREE` | same as `VISION_MODEL` | A cheaper model for the free tier only; tier comes from `public.entitlements`, never from the app |
+
+Build the app with a matching `--dart-define=VISION_PROVIDER="Anthropic (Claude)"` (the default) or `"Google (Gemini)"` — that string is what the consent sheet shows, and it has to be true.
+
+**What a scan costs.** The photo is 512 px on its longest edge before upload, which on Claude is a few hundred image tokens; the system prompt is about 600 tokens and the answer about 250. Per identification, at the list prices in `shared` API pricing (June 2026), before the cache:
+
+| Model | Per scan | 30 free scans a day, all month | Typical (3 a day) |
+|---|---|---|---|
+| `claude-opus-5` ($5 / $25 per MTok) | ≈ $0.011 | ≈ $10 | ≈ $1.00 |
+| `claude-haiku-4-5` ($1 / $5 per MTok) | ≈ $0.002 | ≈ $2 | ≈ $0.20 |
+| `gemini-2.5-flash-lite` | ≈ $0.0005 | ≈ $0.45 | ≈ $0.05 |
+
+The cache (same bytes, same hint, same model) makes repeat plates free, and empty answers are never charged against the quota. Plus at £4.99 a month covers Opus on every realistic pattern; the free tier's worst case is the number to watch. The lever is `VISION_MODEL_FREE=claude-haiku-4-5`: Plus keeps the strongest model, the free tier runs the economical one, and the app's consent text stays truthful because both are Anthropic. Pure logic (prompt, schema, metering, cache key) is under test:
+
+```bash
+cd supabase/functions/identify-food
+deno task check && deno task test
 ```
 
 Then, in the dashboard, Authentication → Providers → **enable anonymous sign-ins**. A fresh install gets an anonymous user on first contact so the diary is backed up from day one; Phase 4 links that user to Apple, Google or an email address.

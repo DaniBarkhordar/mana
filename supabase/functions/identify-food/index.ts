@@ -7,137 +7,129 @@
 //     spends most of its accuracy budget guessing grams from pixels, and gets it
 //     wrong by a documented ±22%. We have a scale. The model's only job is "what
 //     is this", which is the part it is actually good at, and asking for less
-//     means fewer output tokens and a smaller, cheaper model.
+//     means fewer output tokens and a short, schema-bound answer.
 //
-//  2. The image is downscaled to 512px on the device before upload. A food photo
-//     at that size is roughly 1-2k image tokens. On a Flash-Lite class model
-//     that is well under $0.001 per identification — around 100x cheaper than a
-//     specialist food-recognition API, which bills 20-30k tokens per photo.
+//  2. The image is downscaled to 512px on the device before upload. At that
+//     size a photo is a few hundred image tokens on Claude, so a scan is a
+//     fraction of a penny on every model in the table in runbook §3.
 //
 //  3. Results are cached by image hash. Users photograph the same breakfast for
 //     weeks; the second time is free.
 //
-//  4. Context beats model size. A published benchmark found that supplying time
-//     of day, locale and the user's recent foods cut calorie error by ~76 kcal
-//     on average — more than upgrading the model would. We send that context and
-//     stay on the cheap tier.
+//  4. Context beats model size. Time of day, locale and the user's recent foods
+//     go with every request; that resolves more ambiguity than a bigger model
+//     would.
 //
-// The API key lives here, never in the app bundle.
+// The API keys live here, never in the app bundle. Which provider serves is
+// a deployment setting (VISION_PROVIDER / VISION_MODEL / VISION_MODEL_FREE),
+// so the consent text in the app is built with a matching VISION_PROVIDER
+// define.
 // ============================================================================
 
-import { createClient } from "jsr:@supabase/supabase-js@2";
+import Anthropic from "@anthropic-ai/sdk";
+import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
+import { createClient } from "@supabase/supabase-js";
 
-const MODEL = Deno.env.get("VISION_MODEL") ?? "gemini-2.5-flash-lite";
-const GEMINI_KEY = Deno.env.get("GEMINI_API_KEY");
-const ANTHROPIC_KEY = Deno.env.get("ANTHROPIC_API_KEY");
+import {
+  buildUserPrompt,
+  cacheKey,
+  DAILY_LIMIT,
+  type IdentifyRequest,
+  type IdentifyResponse,
+  type IdentifyResult,
+  IdentifyResultSchema,
+  modelFor,
+  normalise,
+  parseModelJson,
+  providerFor,
+  quotaReply,
+  SYSTEM_PROMPT,
+  tierOf,
+  UNAVAILABLE,
+  UNREADABLE,
+  validateRequest,
+  type VisionEnv,
+} from "./identify.ts";
 
-/** Hard ceiling per user per day. Protects against a runaway client loop. */
-const DAILY_LIMIT_FREE = 30;
-const DAILY_LIMIT_PLUS = 400;
+const env: VisionEnv = {
+  ANTHROPIC_API_KEY: Deno.env.get("ANTHROPIC_API_KEY") ?? undefined,
+  GEMINI_API_KEY: Deno.env.get("GEMINI_API_KEY") ?? undefined,
+  VISION_PROVIDER: Deno.env.get("VISION_PROVIDER") ?? undefined,
+  VISION_MODEL: Deno.env.get("VISION_MODEL") ?? undefined,
+  VISION_MODEL_FREE: Deno.env.get("VISION_MODEL_FREE") ?? undefined,
+};
 
-interface IdentifyRequest {
-  /** base64 JPEG, already downscaled to <=512px on the longest edge. */
-  imageBase64: string;
-  /** Device-local time, so "07:40" can bias towards breakfast foods. */
-  localTime?: string;
-  /** BCP-47, e.g. "en-GB". Drives cuisine priors and UK product names. */
-  locale?: string;
-  /** Names the user logged in the last fortnight — their actual diet. */
-  recentFoods?: string[];
-  /** Anything the user typed before taking the photo. */
-  hint?: string;
-  /** Measured grams, when the scale already has a number. Sent for context
-   *  only: it lets the model reason about how many components are plausible. */
-  measuredGrams?: number;
-}
+const anthropic = env.ANTHROPIC_API_KEY
+  ? new Anthropic({ apiKey: env.ANTHROPIC_API_KEY, maxRetries: 2, timeout: 25_000 })
+  : null;
 
-interface FoodCandidate {
-  name: string;
-  /** Suggested search terms against the offline CoFID/USDA index. */
-  queries: string[];
-  confidence: number;
-  /** For a multi-component plate, the share of total mass this component looks
-   *  to be. The user confirms each one on the scale; this only orders the UI. */
-  massShare?: number;
-  cooked: boolean;
-  /** Fat that would have been added in cooking and is invisible in the photo.
-   *  Prompting for this explicitly is what closes the largest published error
-   *  in the category. */
-  likelyAddedFat?: string;
-}
+// ---------------------------------------------------------------------------
+// Providers
+// ---------------------------------------------------------------------------
 
-const SYSTEM_PROMPT = `You identify food in photographs for a UK nutrition app.
+/**
+ * Claude, through the official SDK. Structured output binds the reply to the
+ * schema, so there is no JSON repair step; effort is low because this is a
+ * recognition task, not reasoning; and `fallbacks: "default"` re-runs a
+ * policy decline on Anthropic's recommended substitute inside the same call
+ * rather than returning an empty plate.
+ */
+async function callAnthropic(req: IdentifyRequest, model: string): Promise<IdentifyResult> {
+  if (!anthropic) throw new Error("no anthropic key");
+  const params = {
+    model,
+    max_tokens: 1024,
+    betas: ["server-side-fallback-2026-07-01"],
+    fallbacks: "default",
+    system: SYSTEM_PROMPT,
+    output_config: {
+      effort: "low",
+      format: zodOutputFormat(IdentifyResultSchema),
+    },
+    messages: [{
+      role: "user",
+      content: [
+        {
+          type: "image",
+          source: { type: "base64", media_type: "image/jpeg", data: req.imageBase64 },
+        },
+        { type: "text", text: buildUserPrompt(req) },
+      ],
+    }],
+  };
+  // The SDK's typings trail the `fallbacks` parameter; the request shape is the
+  // documented one (runbook §3 names the beta header).
+  const response = await anthropic.beta.messages.create(
+    params as unknown as Parameters<typeof anthropic.beta.messages.create>[0],
+  ) as Anthropic.Beta.BetaMessage;
 
-The user has a kitchen scale. The exact weight is measured by hardware and is
-supplied to you or captured separately. NEVER estimate portion size, grams,
-calories or macros. You will be wrong and the scale will not be.
-
-Your only job is identification. Return, for each distinct food component:
-- a short specific name a UK shopper would recognise
-- 2-4 search queries for a food-composition database, most specific first
-- whether it is cooked or raw
-- roughly what share of the total mass it looks like (for ordering only)
-- any cooking fat likely absorbed but not visible (oil, butter, ghee)
-
-Rules:
-- Prefer UK naming: "courgette" not "zucchini", "aubergine" not "eggplant",
-  "mince" not "ground beef", "rocket" not "arugula", "coriander" not "cilantro".
-- Split composite plates into components. "Chicken curry with rice" is at least
-  three: chicken, sauce, rice.
-- If the photo is unclear, say so with low confidence rather than guessing.
-- If there is no food in the image, return an empty array.
-- Never diagnose, never give medical or dietary advice, never mention allergens
-  as safe or unsafe.
-
-Return strict JSON only: {"candidates":[...],"note":string|null}`;
-
-function buildUserPrompt(req: IdentifyRequest): string {
-  const bits: string[] = [];
-  if (req.localTime) bits.push(`Local time: ${req.localTime}`);
-  if (req.locale) bits.push(`Locale: ${req.locale}`);
-  if (req.measuredGrams) {
-    bits.push(`Total measured mass on the scale: ${Math.round(req.measuredGrams)} g`);
+  if (response.stop_reason === "refusal") {
+    // The whole fallback chain declined. Say so honestly; weighing goes on.
+    return { candidates: [], note: "This photo could not be processed." };
   }
-  if (req.recentFoods?.length) {
-    bits.push(`This user's recent foods: ${req.recentFoods.slice(0, 25).join(", ")}`);
-  }
-  if (req.hint) bits.push(`User note: ${req.hint}`);
-  bits.push("Identify the food components in this photograph.");
-  return bits.join("\n");
-}
-
-async function sha256(input: string): Promise<string> {
-  const digest = await crypto.subtle.digest(
-    "SHA-256",
-    new TextEncoder().encode(input),
-  );
-  return [...new Uint8Array(digest)]
-    .map((b) => b.toString(16).padStart(2, "0"))
+  const text = response.content
+    .filter((b): b is Anthropic.Beta.BetaTextBlock => b.type === "text")
+    .map((b) => b.text)
     .join("");
+  if (!text) return UNREADABLE;
+  const parsed = IdentifyResultSchema.safeParse(JSON.parse(text));
+  return parsed.success ? normalise(parsed.data) : parseModelJson(text);
 }
 
-/** Strip markdown fencing some models add around JSON. */
-function parseModelJson(text: string): { candidates: FoodCandidate[]; note: string | null } {
-  const cleaned = text.trim().replace(/^```(?:json)?\s*/i, "").replace(/```$/, "");
-  try {
-    const parsed = JSON.parse(cleaned);
-    return {
-      candidates: Array.isArray(parsed.candidates) ? parsed.candidates : [],
-      note: typeof parsed.note === "string" ? parsed.note : null,
-    };
-  } catch {
-    return { candidates: [], note: "Could not read the photo clearly." };
-  }
-}
-
-async function callGemini(req: IdentifyRequest): Promise<string> {
+/** Gemini, kept as the low-cost alternative. Raw REST; there is no official Deno SDK. */
+async function callGemini(req: IdentifyRequest, model: string): Promise<IdentifyResult> {
   const url =
-    `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${GEMINI_KEY}`;
+    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${env.GEMINI_API_KEY}`;
   const res = await fetch(url, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
-      systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
+      systemInstruction: {
+        parts: [{
+          text: SYSTEM_PROMPT +
+            '\n\nReturn strict JSON only: {"candidates":[{"name":string,"queries":string[],"confidence":number,"massShare":number|null,"cooked":boolean,"likelyAddedFat":string|null}],"note":string|null}',
+        }],
+      },
       contents: [{
         role: "user",
         parts: [
@@ -147,46 +139,19 @@ async function callGemini(req: IdentifyRequest): Promise<string> {
       }],
       generationConfig: {
         temperature: 0.1,
-        // Identification is short. Capping output is a direct cost control.
-        maxOutputTokens: 700,
+        maxOutputTokens: 1024,
         responseMimeType: "application/json",
       },
     }),
   });
   if (!res.ok) throw new Error(`vision upstream ${res.status}`);
   const json = await res.json();
-  return json?.candidates?.[0]?.content?.parts?.[0]?.text ?? "{}";
+  return parseModelJson(json?.candidates?.[0]?.content?.parts?.[0]?.text ?? "{}");
 }
 
-async function callAnthropic(req: IdentifyRequest): Promise<string> {
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      "x-api-key": ANTHROPIC_KEY!,
-      "anthropic-version": "2023-06-01",
-    },
-    body: JSON.stringify({
-      model: MODEL,
-      max_tokens: 700,
-      temperature: 0.1,
-      system: SYSTEM_PROMPT,
-      messages: [{
-        role: "user",
-        content: [
-          {
-            type: "image",
-            source: { type: "base64", media_type: "image/jpeg", data: req.imageBase64 },
-          },
-          { type: "text", text: buildUserPrompt(req) },
-        ],
-      }],
-    }),
-  });
-  if (!res.ok) throw new Error(`vision upstream ${res.status}`);
-  const json = await res.json();
-  return json?.content?.[0]?.text ?? "{}";
-}
+// ---------------------------------------------------------------------------
+// HTTP
+// ---------------------------------------------------------------------------
 
 Deno.serve(async (request) => {
   if (request.method !== "POST") {
@@ -203,29 +168,47 @@ Deno.serve(async (request) => {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return new Response("unauthorised", { status: 401 });
 
-  let body: IdentifyRequest;
+  let raw: unknown;
   try {
-    body = await request.json();
+    raw = await request.json();
   } catch {
     return new Response("bad request", { status: 400 });
   }
-  if (!body.imageBase64) return new Response("no image", { status: 400 });
+  const body = validateRequest(raw);
+  if (typeof body === "string") return new Response(body, { status: 400 });
 
-  // ---- cache -------------------------------------------------------------
-  // Same photo, same answer, no spend. Keyed on the image and the hint only:
-  // time of day and recent foods shift wording, not identity.
-  const key = await sha256(body.imageBase64 + (body.hint ?? ""));
+  const provider = providerFor(env);
+  if (!provider) {
+    // Deployed without a key. The app shows "unavailable" and keeps weighing.
+    return Response.json(UNAVAILABLE satisfies IdentifyResponse, { status: 200 });
+  }
+
+  // ---- tier ---------------------------------------------------------------
+  // Read first: it decides both the model and the ceiling. The app never
+  // tells us its tier; the entitlements table, fed by the billing webhook, does.
+  const { data: entitlement } = await supabase
+    .from("entitlements")
+    .select("tier")
+    .eq("user_id", user.id)
+    .maybeSingle();
+  const tier = tierOf(entitlement?.tier);
+  const model = modelFor(env, provider, tier);
+
+  // ---- cache --------------------------------------------------------------
+  // Same photo, same answer, no spend. Keyed on the image, the hint and the
+  // model only: time of day and recent foods shift wording, not identity.
+  const key = await cacheKey(body, model);
   const { data: cached } = await supabase
     .from("vision_cache")
     .select("result")
     .eq("cache_key", key)
     .maybeSingle();
-
   if (cached?.result) {
-    return Response.json({ ...cached.result, cached: true });
+    await supabase.rpc("bump_cache_hit", { p_key: key });
+    return Response.json({ ...normalise(cached.result), cached: true } satisfies IdentifyResponse);
   }
 
-  // ---- quota -------------------------------------------------------------
+  // ---- quota --------------------------------------------------------------
   const since = new Date();
   since.setUTCHours(0, 0, 0, 0);
   const { count } = await supabase
@@ -233,42 +216,29 @@ Deno.serve(async (request) => {
     .select("id", { count: "exact", head: true })
     .eq("user_id", user.id)
     .gte("created_at", since.toISOString());
-
-  const { data: entitlement } = await supabase
-    .from("entitlements")
-    .select("tier")
-    .eq("user_id", user.id)
-    .maybeSingle();
-
-  const limit = entitlement?.tier === "plus" ? DAILY_LIMIT_PLUS : DAILY_LIMIT_FREE;
-  if ((count ?? 0) >= limit) {
-    return Response.json({
-      candidates: [],
-      note: "You've used today's photo scans.",
-      quotaExceeded: true,
-      // Weighing still works, always. The scale is the product; the camera is
-      // a convenience, and metering it must never block core logging.
-      canStillWeigh: true,
-    }, { status: 200 });
+  if ((count ?? 0) >= DAILY_LIMIT[tier]) {
+    return Response.json(quotaReply(), { status: 200 });
   }
 
-  // ---- model -------------------------------------------------------------
-  let raw: string;
+  // ---- model --------------------------------------------------------------
+  let result: IdentifyResult;
   try {
-    raw = GEMINI_KEY ? await callGemini(body) : await callAnthropic(body);
+    result = provider === "anthropic"
+      ? await callAnthropic(body, model)
+      : await callGemini(body, model);
   } catch (err) {
-    console.error("vision failed", err);
-    return Response.json({
-      candidates: [],
-      note: "Photo recognition is unavailable. You can still search or weigh.",
-      degraded: true,
-    }, { status: 200 });
+    // Rate limit, outage, bad key: all the same to the user. Log the class,
+    // never the image.
+    console.error("vision failed", err instanceof Error ? err.message : String(err));
+    return Response.json(UNAVAILABLE satisfies IdentifyResponse, { status: 200 });
   }
 
-  const result = parseModelJson(raw);
+  // A reply with nothing in it is not worth caching: the next attempt at the
+  // same plate should get a fresh look, and it never cost a scan either way.
+  if (result.candidates.length > 0) {
+    await supabase.from("vision_cache").insert({ cache_key: key, result });
+    await supabase.from("vision_usage").insert({ user_id: user.id });
+  }
 
-  await supabase.from("vision_cache").insert({ cache_key: key, result });
-  await supabase.from("vision_usage").insert({ user_id: user.id });
-
-  return Response.json({ ...result, cached: false });
+  return Response.json({ ...result, cached: false } satisfies IdentifyResponse);
 });

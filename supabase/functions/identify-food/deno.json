@@ -1,0 +1,12 @@
+{
+  "imports": {
+    "@anthropic-ai/sdk": "npm:@anthropic-ai/sdk@^0.124.0",
+    "@anthropic-ai/sdk/helpers/zod": "npm:@anthropic-ai/sdk@^0.124.0/helpers/zod",
+    "@supabase/supabase-js": "npm:@supabase/supabase-js@^2.115.0",
+    "zod": "npm:zod@^4.5.0"
+  },
+  "tasks": {
+    "check": "deno check index.ts",
+    "test": "deno test --allow-env identify_test.ts"
+  }
+}

@@ -119,13 +119,15 @@ class AppServices {
 }
 
 /// Which AI provider the vision function is deployed against, for the
-/// consent text. Set at build time to match `VISION_MODEL` on the server.
+/// consent text. Set at build time to match `VISION_PROVIDER` on the server
+/// (`--dart-define=VISION_PROVIDER="Google (Gemini)"` for a Gemini
+/// deployment); the default matches the function's default, Anthropic.
 class VisionConfig {
   const VisionConfig._();
 
   static const providerName = String.fromEnvironment(
     'VISION_PROVIDER',
-    defaultValue: 'Google (Gemini)',
+    defaultValue: 'Anthropic (Claude)',
   );
 }
 
