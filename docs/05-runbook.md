@@ -121,6 +121,27 @@ flutter build appbundle --release
 
 **Start the D-U-N-S number today.** An Apple organisation account requires it, it is free, and it takes up to two weeks. It is the classic blocker that catches everyone, and healthcare apps *must* be submitted by a legal entity rather than an individual (guideline 5.1.1(ix)). Register Google Play as an organisation too, or you face a 14-day closed test before you can release.
 
+## 6a. Looking at the screens without a device
+
+The screenshot tests render the real screens at phone size with a seeded
+persona (178 cm, 34, male, a month of readings, three meals). They run as
+ordinary tests everywhere; with two environment variables they also write
+PNGs and use a real typeface (the test font draws every glyph as a box):
+
+```bash
+cd app
+MANANU_SHOTS_DIR=/tmp/shots \
+MANANU_FONT_PATH=/path/Sans-Regular.ttf:/path/Sans-Bold.ttf \
+  flutter test test/screenshots --tags screenshots
+```
+
+Text set in an explicit style (the weight readout, app-bar titles, button
+labels) still renders as boxes there; that is the harness, not the app.
+
+The design canvas is generated from the same tokens: `python3
+design/build_canvas.py` rewrites `design/canvas/`, and `design/README.md` says
+how it is published.
+
 ## 7. Pricing
 
 Hardware sold outright; no subscription required for core function.

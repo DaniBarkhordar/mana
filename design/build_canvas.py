@@ -103,6 +103,8 @@ def icon(name, size=24, color="currentColor", stroke=1.8):
         "sparkle": '<path d="M12 3l1.9 6.1L20 11l-6.1 1.9L12 19l-1.9-6.1L4 11l6.1-1.9z"/>',
         "download": '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>',
         "trash": '<path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6M10 11v6M14 11v6"/>',
+        "close": '<path d="M18 6L6 18M6 6l12 12"/>',
+        "refresh": '<path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/>',
         "back": '<path d="M19 12H5M12 19l-7-7 7-7"/>',
         "recipe": '<path d="M6 3v18M6 3c3 0 4 2 4 5s-1 5-4 5M18 3v18M18 3c-2 0-3 4-3 7s1 3 3 3"/>',
         "restaurant": '<path d="M7 2v20M7 2c2 0 3 2 3 5s-1 5-3 5-3-2-3-5 1-5 3-5zM17 2v20M17 2c-1.5 0-3 3-3 7 0 2 1 3 3 3"/>',
@@ -242,6 +244,85 @@ def scroll(inner, bottom=168):
     )
 
 
+def mark(p, height=18):
+    # MananuMark: three strokes, the middle one brass. Proportions from
+    # theme/instruments.dart (stroke 0.225 h, gap 0.1625 h, width 1.05 h).
+    stroke = height * 0.225
+    gap = height * 0.1625
+    width = height * 1.05
+    def bar(c):
+        return f'<div style="width:{width:.1f}px;height:{stroke:.1f}px;border-radius:{stroke / 2:.1f}px;background:{c};"></div>'
+    return (
+        f'<div style="display:flex;flex-direction:column;gap:{gap:.1f}px;" aria-label="Mananu">'
+        f'{bar(p["on"])}{bar(BRASS)}{bar(p["on"])}</div>'
+    )
+
+
+def header(p, title, label=None, actions=""):
+    # MananuHeader: small label over a 30 px title, the mark (or actions) right.
+    lab = (
+        f'<div style="{T_LABEL}text-transform:uppercase;color:{alpha(p, 0.5)};">{label}</div><div style="height:2px;"></div>'
+        if label else ""
+    )
+    right = actions or f'<div style="padding-right:8px;">{mark(p)}</div>'
+    return f"""<div style="flex:none;display:flex;align-items:center;padding:12px 8px 8px 16px;">
+  <div style="flex:1;display:flex;flex-direction:column;">{lab}<div style="{T_DISPLAY}font-size:30px;color:{p['on']};">{title}</div></div>
+  <div style="display:flex;align-items:center;">{right}</div>
+</div>"""
+
+
+def arc_gauge(p, progress, inner, size=132, stroke=10):
+    # ArcGauge: a 270° arc from 135°, quiet track, brass fill.
+    import math
+    c = size / 2
+    r = c - stroke / 2
+    def pt(deg):
+        a = math.radians(deg)
+        return f"{c + r * math.cos(a):.2f},{c + r * math.sin(a):.2f}"
+    def arc(sweep, colour):
+        if sweep <= 0:
+            return ""
+        large = 1 if sweep > 180 else 0
+        return (
+            f'<path d="M{pt(135)} A{r:.2f},{r:.2f} 0 {large} 1 {pt(135 + sweep)}" fill="none" '
+            f'stroke="{colour}" stroke-width="{stroke}" stroke-linecap="round"/>'
+        )
+    svg = (
+        f'<svg width="{size}" height="{size}" viewBox="0 0 {size} {size}" style="position:absolute;inset:0;">'
+        f'{arc(270, p["raised"])}{arc(270 * min(progress, 1.0), WARNING if progress > 1 else p["primary"])}</svg>'
+    )
+    return (
+        f'<div style="position:relative;width:{size}px;height:{size}px;flex:none;display:flex;align-items:center;justify-content:center;">'
+        f'{svg}<div style="position:relative;display:flex;flex-direction:column;align-items:center;">{inner}</div></div>'
+    )
+
+
+def sparkline(p, values, width=96, height=32):
+    # Sparkline: a hint of direction, no axes, dot on the last point.
+    lo, hi = min(values), max(values)
+    if hi - lo < 0.5:
+        mid = (hi + lo) / 2
+        lo, hi = mid - 0.25, mid + 0.25
+    pad = 4
+    pts = []
+    for i, v in enumerate(values):
+        x = pad + (width - 2 * pad) * i / (len(values) - 1)
+        y = pad + (height - 2 * pad) * (hi - v) / (hi - lo)
+        pts.append(f"{x:.1f},{y:.1f}")
+    lx, ly = pts[-1].split(",")
+    return (
+        f'<svg width="{width}" height="{height}" viewBox="0 0 {width} {height}">'
+        f'<polyline points="{" ".join(pts)}" fill="none" stroke="{BRASS}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>'
+        f'<circle cx="{lx}" cy="{ly}" r="4" fill="{p["surface"]}"/><circle cx="{lx}" cy="{ly}" r="3" fill="{BRASS}"/></svg>'
+    )
+
+
+# The persona's last thirty mornings, oldest first. The Body chart and the
+# Today sparkline both draw from this list.
+WEIGHTS = [80.1, 80.2, 79.7, 80.2, 79.5, 80.4, 79.6, 79.3, 79.9, 79.2, 79.5, 79.0,
+           79.6, 78.9, 79.4, 78.7, 79.2, 78.9, 78.6, 79.2, 78.7, 78.5, 78.9, 78.3,
+           78.8, 78.3, 78.7, 78.2, 78.5, 78.7]
+
 # ---------------------------------------------------------------- screens
 
 def onboarding(p, height=None):
@@ -269,91 +350,124 @@ Photo recognition is free for 30 scans a month. Beyond that, Plus is £4.99 a mo
 
 
 def today(p, height=None):
-    energy = card(p, f"""
-<div style="display:flex;align-items:baseline;gap:4px;">
-  <div style="{T_DISPLAY}color:{p['on']};">1,106</div>
-  <div style="{T_BODY}color:{alpha(p, 0.6)};">kcal</div>
-  <div style="flex:1;"></div>
-  <div style="{T_BODY_STRONG}color:{alpha(p, 0.7)};">1,930 left</div>
-</div>
-<div style="height:16px;"></div>
-{progress(p, 36)}
-<div style="height:16px;"></div>
-<div style="display:flex;align-items:center;gap:12px;">
-  {badge(p, True, "91% weighed")}
-  <div style="flex:1;{T_CAPTION}color:{alpha(p, 0.6)};">Today's numbers are about as accurate as food logging gets.</div>
-</div>
-<div style="height:12px;"></div>
-<div style="{T_CAPTION}color:{alpha(p, 0.45)};">From your fat-free mass (Cunningham 1980)</div>
-""", padding="24px")
+    eaten, goal = 1105, 3038
+    inside = (
+        f'<div style="{T_DISPLAY}font-size:34px;color:{p["on"]};">1,105</div>'
+        f'<div style="{T_CAPTION}color:{alpha(p, 0.55)};">kcal</div>'
+    )
 
     def macro(label, grams, target, colour):
         pct = round(grams / target * 100)
-        return f"""<div style="flex:1;display:flex;flex-direction:column;align-items:center;">
-  <div style="{T_LABEL}text-transform:uppercase;color:{alpha(p, 0.5)};">{label}</div>
-  <div style="height:8px;"></div>
-  <div style="{T_NUMBER}font-size:17px;color:{p['on']};">{grams} g</div>
-  <div style="height:8px;"></div>
-  <div style="align-self:stretch;padding:0 12px;">{progress(p, pct, 5, colour)}</div>
+        return f"""<div style="flex:1;display:flex;flex-direction:column;">
+  <div style="display:flex;align-items:baseline;"><div style="{T_NUMBER}font-size:17px;color:{p['on']};">{grams}</div><div style="{T_CAPTION}color:{alpha(p, 0.5)};">&nbsp;g</div></div>
   <div style="height:4px;"></div>
-  <div style="{T_CAPTION}font-size:11px;color:{alpha(p, 0.4)};">of {target} g</div>
+  <div style="padding-right:12px;">{progress(p, pct, 5, colour)}</div>
+  <div style="height:4px;"></div>
+  <div style="{T_CAPTION}font-size:11px;color:{alpha(p, 0.5)};">{label} · of {target} g</div>
 </div>"""
 
-    macros = card(p, f'<div style="display:flex;">{macro("Protein", 84, 125, PROTEIN)}{macro("Carbs", 132, 422, CARBS)}{macro("Fat", 38, 94, FAT)}</div>', padding="16px")
+    energy = card(p, f"""<div style="display:flex;align-items:center;gap:16px;">
+  {arc_gauge(p, eaten / goal, inside)}
+  <div style="flex:1;display:flex;flex-direction:column;align-items:flex-start;">
+    <div style="{T_DISPLAY}font-size:28px;color:{p['on']};">1,933</div>
+    <div style="{T_CAPTION}color:{alpha(p, 0.55)};">left of 3,038</div>
+    <div style="height:12px;"></div>
+    {badge(p, True, "92% weighed")}
+    <div style="height:4px;"></div>
+    <div style="{T_CAPTION}color:{alpha(p, 0.55)};text-wrap:pretty;">About as accurate as logging gets.</div>
+  </div>
+</div>
+<div style="height:16px;border-bottom:1px solid {p['line']};"></div>
+<div style="height:12px;"></div>
+<div style="display:flex;">{macro("Protein", 71, 126, PROTEIN)}{macro("Carbs", 127, 420, CARBS)}{macro("Fat", 33, 95, FAT)}</div>
+<div style="height:12px;"></div>
+<div style="{T_CAPTION}font-size:11px;color:{alpha(p, 0.4)};">From your fat-free mass (Cunningham 1980)</div>
+""", padding="24px 24px 16px 24px")
 
-    def meal(slot, names, kcal, weighed, label, unsynced=False, last=False):
+    def meal(time, slot, names, kcal, weighed, label, unsynced=False, last=False):
         sync = (
-            f'<div title="Saved on this phone, not yet synced" style="display:flex;align-items:center;">{icon("cloud-off", 14, p["mist"], 2)}</div>'
+            f'<div title="Saved on this phone, not yet synced" style="display:flex;align-items:center;margin-left:6px;">{icon("cloud-off", 14, p["mist"], 2)}</div>'
             if unsynced else ""
         )
         border = "" if last else f"border-bottom:1px solid {p['line']};"
         return f"""<div style="display:flex;align-items:center;gap:12px;padding:12px 16px;{border}">
+  <div style="width:44px;flex:none;{T_CAPTION}{TNUM}color:{alpha(p, 0.5)};">{time}</div>
   <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;">
-    <div style="display:flex;align-items:center;gap:6px;"><div style="{T_BODY_STRONG}color:{p['on']};">{slot}</div>{sync}</div>
-    <div style="{T_CAPTION}color:{alpha(p, 0.6)};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{names}</div>
+    <div style="display:flex;align-items:center;"><div style="{T_BODY_STRONG}color:{p['on']};">{slot}</div>{sync}</div>
+    <div style="{T_CAPTION}color:{alpha(p, 0.6)};text-wrap:pretty;">{names}</div>
   </div>
-  <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
+  <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex:none;">
     <div style="{T_NUMBER}color:{p['on']};">{kcal} kcal</div>
     {badge(p, weighed, label, dense=True)}
   </div>
 </div>"""
 
     meals = section(p, "Meals", card(p,
-        meal("Breakfast", "Porridge oats, Greek yogurt", 427, True, "Weighed")
-        + meal("Lunch", "Chicken breast, basmati rice, olive oil", 584, True, "Weighed")
-        + meal("Snack", "Apple, medium", 95, False, "Estimated", unsynced=True, last=True),
+        meal("07:40", "Breakfast", "Porridge oats, Greek yogurt", 427, True, "Weighed")
+        + meal("12:55", "Lunch", "Chicken breast, grilled, basmati rice, olive oil", 584, True, "Weighed")
+        + meal("16:10", "Snack", "Apple, medium", 94, False, "Estimated", unsynced=True, last=True),
     ))
 
-    body = section(p, "Body", card(p, f"""<div style="display:flex;align-items:center;gap:12px;padding:16px;">
+    body = section(p, "Body", card(p, f"""<div style="display:flex;align-items:center;gap:8px;padding:16px;">
   <div style="flex:1;display:flex;flex-direction:column;gap:2px;">
-    <div style="{T_TITLE}{TNUM}color:{p['on']};">78.4 kg</div>
-    <div style="{T_CAPTION}color:{alpha(p, 0.6)};">Body fat trending at 22.1%</div>
+    <div style="{T_TITLE}{TNUM}color:{p['on']};">78.7 kg</div>
+    <div style="{T_CAPTION}color:{alpha(p, 0.6)};">Body fat trending at 22.9%</div>
   </div>
-  {icon("chevron", 24, alpha(p, 0.5))}
+  {sparkline(p, WEIGHTS[-14:])}
+  {icon("chevron", 24, alpha(p, 0.4))}
 </div>"""))
 
     inner = f"""{status_space()}
-{app_bar(p, "Today")}
-{scroll(energy + macros + meals + body)}
+{header(p, "Today", "Sunday 6 September")}
+{scroll(energy + meals + body)}
 {nav_bar(p, "today")}
 {fab(p)}
 """
     return doc(inner, p, height=height)
 
 
-def weigh_food_inner(p, capturing=True):
+def photo_strip(p, names):
+    # _FromPhotoStrip: what the photo recognised, as chips, one tap from the
+    # capture flow. The grams still come from the scale.
+    chips = "".join(
+        f'<div style="height:32px;padding:0 12px;border-radius:8px;border:1px solid {p["line"]};display:flex;align-items:center;'
+        f'{T_CAPTION}font-weight:600;color:{p["on"]};white-space:nowrap;">{n}</div>'
+        for n in names
+    )
+    return f"""<div style="flex:none;background:{p['surface']};padding:8px 8px 8px 16px;display:flex;align-items:center;gap:12px;overflow:hidden;">
+  <div style="{T_LABEL}color:{alpha(p, 0.45)};white-space:nowrap;">FROM YOUR PHOTO</div>
+  <div style="flex:1;display:flex;gap:8px;overflow:hidden;-webkit-mask-image:linear-gradient(90deg,#000 80%,transparent);mask-image:linear-gradient(90deg,#000 80%,transparent);">{chips}</div>
+  <div style="width:32px;height:32px;display:flex;align-items:center;justify-content:center;flex:none;">{icon("close", 18, p["on"], 2)}</div>
+</div>
+<div style="height:1px;background:{p['line']};flex:none;"></div>"""
+
+
+def weigh_food_inner(p, capturing=True, from_photo=True, grams="235.0", stable=True):
+    # _ScaleReadout: the number is the hero. It goes quiet (45 %) while the
+    # reading moves and settles to ink, with the brass bar, once it locks.
+    bar_w = 72 if stable else 28
+    bar_c = BRASS if stable else alpha(p, 0.2)
+    delta = (
+        f'<div style="height:12px;"></div>'
+        f'<div style="padding:8px 12px;border-radius:8px;background:{BRASS_SOFT};{T_CAPTION}font-weight:600;color:{BRASS};">+160.0 g since last ingredient</div>'
+        if capturing else ""
+    )
     readout = f"""<div style="flex:none;background:{p['surface']};padding:16px 24px 24px 24px;display:flex;flex-direction:column;align-items:center;">
   <div style="display:flex;align-items:center;gap:8px;">
     <div style="width:7px;height:7px;border-radius:999px;background:{MEASURED};"></div>
-    <div style="{T_LABEL}color:{alpha(p, 0.55)};">Scale connected</div>
+    <div style="{T_LABEL}color:{alpha(p, 0.55)};">SCALE CONNECTED</div>
   </div>
   <div style="height:16px;"></div>
-  <div style="{T_READOUT}color:{p['on']};">235.0</div>
-  <div style="{T_LABEL}color:{alpha(p, 0.5)};margin-top:6px;">grams</div>
-  <div style="height:12px;"></div>
-  <div style="padding:8px 12px;border-radius:8px;background:{BRASS_SOFT};{T_CAPTION}font-weight:600;color:{BRASS};">+160.0 g since last ingredient</div>
+  <div style="{T_READOUT}color:{p['on'] if stable else alpha(p, 0.45)};">{grams}</div>
+  <div style="height:8px;"></div>
+  <div style="width:{bar_w}px;height:3px;border-radius:2px;background:{bar_c};"></div>
+  <div style="height:8px;"></div>
+  <div style="{T_LABEL}color:{alpha(p, 0.5)};">{"GRAMS · SETTLED" if stable else "GRAMS"}</div>
+  {delta}
 </div>
 <div style="height:1px;background:{p['line']};flex:none;"></div>"""
+
+    strip = photo_strip(p, ["Basmati rice", "Chicken tikka", "Coriander"]) if from_photo else ""
 
     def component(name, grams, kcal, last=False):
         border = "" if last else f"border-bottom:1px solid {p['line']};margin-left:16px;"
@@ -365,11 +479,11 @@ def weigh_food_inner(p, capturing=True):
   <div style="{T_NUMBER}color:{p['on']};">{kcal} kcal</div>
 </div>"""
 
-    lst = f'<div style="flex:1;overflow:hidden;padding:8px 0 8px 16px;display:flex;flex-direction:column;">{component("Basmati rice, dry", 75, 267, last=True)}</div>'
+    lst = f'<div style="flex:1;overflow:hidden;padding:8px 0 8px 16px;display:flex;flex-direction:column;">{component("Rice, white, basmati, boiled", 75, 98, last=True)}</div>'
 
     if capturing:
         action = f"""<div style="flex:none;background:{p['surface']};border-top:1px solid {p['line']};padding:16px;display:flex;flex-direction:column;">
-  <div style="{T_BODY_STRONG}color:{p['on']};">Adding: Chicken breast, grilled</div>
+  <div style="{T_BODY_STRONG}color:{p['on']};">Adding: Chicken tikka</div>
   <div style="height:4px;"></div>
   <div style="{T_CAPTION}color:{alpha(p, 0.6)};">Reading has settled. Tap to capture 160.0 g.</div>
   <div style="height:12px;"></div>
@@ -386,7 +500,7 @@ def weigh_food_inner(p, capturing=True):
     summary = f"""<div style="flex:none;background:{p['raised']};border-top:1px solid {p['line']};padding:16px 16px 28px 16px;display:flex;align-items:center;gap:12px;">
   <div style="flex:1;display:flex;flex-direction:column;gap:2px;">
     <div style="display:flex;align-items:baseline;gap:4px;">
-      <div style="{T_DISPLAY}font-size:30px;color:{p['on']};">267</div>
+      <div style="{T_DISPLAY}font-size:30px;color:{p['on']};">98</div>
       <div style="{T_CAPTION}color:{p['on']};">kcal</div>
       <div style="width:4px;"></div>
       <div style="{T_CAPTION}color:{alpha(p, 0.5)};">±5%</div>
@@ -399,6 +513,7 @@ def weigh_food_inner(p, capturing=True):
     return f"""{status_space()}
 {app_bar(p, "Weigh food", actions=icon_button(p, "tare"))}
 {readout}
+{strip}
 {lst}
 {action}
 {summary}
@@ -446,23 +561,83 @@ def cooking_oil(p, height=None):
   {filled_button(p, "Add to meal")}
 </div>"""
 
-    return doc(weigh_food_inner(p, capturing=False) + sheet, p, height=height)
+    return doc(weigh_food_inner(p, capturing=False, from_photo=False) + sheet, p, height=height)
+
+
+def photo_scan(p, height=None):
+    # PhotoIdentifySheet, results stage: the model said what is on the plate,
+    # each candidate is matched to the catalogue, and the user taps the one
+    # they are weighing now. No grams anywhere on this sheet: the scale has
+    # those.
+    thumb = """<svg width="56" height="56" viewBox="0 0 56 56" style="border-radius:8px;flex:none;">
+<rect width="56" height="56" fill="#E9E4D8"/>
+<circle cx="28" cy="29" r="22" fill="#FFFFFF"/><circle cx="28" cy="29" r="17" fill="none" stroke="#E4E2DC"/>
+<path d="M14 30c3-8 12-10 18-7 4 2 6 6 4 10-3 5-11 6-16 3-4-2-6-3-6-6z" fill="#EFD9A8"/>
+<path d="M26 20c4-3 10-2 13 2 2 3 1 7-2 9-4 2-9 0-11-3-2-3-2-6 0-8z" fill="#C8642F"/>
+<path d="M22 24l3-4M35 33l3 2" stroke="#2E7D4F" stroke-width="2" stroke-linecap="round"/>
+</svg>"""
+
+    def candidate(name, conf, match, alts=(), last=False):
+        sub = (
+            f'<div style="{T_CAPTION}color:{alpha(p, 0.6)};text-wrap:pretty;">{match}</div>'
+            if match else
+            f'<div style="{T_CAPTION}color:{alpha(p, 0.6)};">Not in the food database — search for it instead.</div>'
+        )
+        chips = "".join(
+            f'<div style="height:32px;padding:0 12px;border-radius:8px;border:1px solid {p["line"]};display:flex;align-items:center;{T_CAPTION}color:{p["on"]};white-space:nowrap;">{a}</div>'
+            for a in alts
+        )
+        alt = f'<div style="display:flex;flex-wrap:wrap;gap:8px;padding:0 16px 12px 16px;">{chips}</div>' if alts else ""
+        chevron = icon("chevron", 22, alpha(p, 0.5)) if match else ""
+        return card(p, f"""<div style="display:flex;align-items:center;gap:12px;padding:12px 16px;">
+  <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:4px;">
+    <div style="display:flex;align-items:center;"><div style="flex:1;{T_BODY_STRONG}color:{p['on']};">{name}</div><div style="{T_LABEL}color:{alpha(p, 0.5)};">{conf}</div></div>
+    {sub}
+  </div>
+  {chevron}
+</div>{alt}""") + ("" if last else '<div style="height:8px;"></div>')
+
+    fat = card(p, f"""<div style="display:flex;align-items:center;gap:16px;padding:12px 16px;">
+    {icon("drop", 24, BRASS)}
+    <div style="flex:1;display:flex;flex-direction:column;gap:4px;">
+      <div style="{T_BODY_STRONG}color:{p['on']};">Cooked in fat?</div>
+      <div style="{T_CAPTION}color:{alpha(p, 0.6)};text-wrap:pretty;">Looks like ghee in the marinade. Weigh the pan before and after to log what the food absorbed — the photo cannot see it.</div>
+    </div>
+  </div>""")
+
+    sheet = f"""<div style="position:absolute;inset:0;background:rgba(13,16,18,0.32);"></div>
+<div style="position:absolute;left:0;right:0;bottom:0;top:170px;background:{p['surface']};border-radius:28px 28px 0 0;padding:8px 24px 24px 24px;display:flex;flex-direction:column;overflow:hidden;">
+  <div style="align-self:center;width:32px;height:4px;border-radius:999px;background:{p['mist']};opacity:0.6;flex:none;"></div>
+  <div style="height:16px;"></div>
+  <div style="display:flex;align-items:center;gap:12px;">
+    {thumb}
+    <div style="flex:1;{T_TITLE}color:{p['on']};">Tap what you are weighing now</div>
+    <div style="width:40px;height:40px;display:flex;align-items:center;justify-content:center;">{icon("refresh", 22, p['on'])}</div>
+  </div>
+  <div style="height:16px;"></div>
+  {candidate("Basmati rice", "LIKELY", "Rice, white, basmati, boiled · 130 kcal / 100 g · CoFID", alts=["Rice, white, boiled", "Rice, brown, boiled"])}
+  {candidate("Chicken tikka", "LIKELY", "Chicken tikka, takeaway · 173 kcal / 100 g · CoFID", alts=["Chicken, breast, grilled"])}
+  {candidate("Coriander", "POSSIBLY", None, last=True)}
+  <div style="height:8px;"></div>
+  {fat}
+  <div style="height:12px;"></div>
+  <div style="{T_CAPTION}color:{alpha(p, 0.5)};text-wrap:pretty;">The photo only says what the food is. The amount is whatever the scale reads when you capture it.</div>
+</div>"""
+    return doc(weigh_food_inner(p, capturing=False, from_photo=False, grams="0.0", stable=False) + sheet, p, height=height)
 
 
 def body_chart(p):
     # 30 days of morning weights (dots) with the 7-day rolling median (line).
     # Drawn deliberately: the dots are faint so the noise is visible and the
     # trend is what the eye lands on.
-    raw = [79.8, 80.1, 79.6, 79.9, 79.4, 80.3, 79.5, 79.2, 79.6, 79.0, 79.3, 78.9,
-           79.4, 78.8, 79.1, 78.6, 79.0, 78.7, 78.4, 79.0, 78.5, 78.3, 78.7, 78.2,
-           78.6, 78.1, 78.5, 78.0, 78.3, 78.4]
+    raw = WEIGHTS
     med = []
     for i in range(len(raw)):
         w = sorted(raw[max(0, i - 6): i + 1])
         m = w[len(w) // 2] if len(w) % 2 else (w[len(w) // 2 - 1] + w[len(w) // 2]) / 2
         med.append(m)
     W, H, L, R, T, B = 342, 150, 6, 44, 10, 26
-    lo, hi = 77.8, 80.4
+    lo, hi = 78.0, 80.5  # snapped to the 0.5 kg gridline step, as in the app
 
     def x(i): return L + i * (W - L - R) / (len(raw) - 1)
     def y(v): return T + (hi - v) * (H - T - B) / (hi - lo)
@@ -471,67 +646,68 @@ def body_chart(p):
     grid = "".join(
         f'<line x1="{L}" x2="{W - R}" y1="{y(v):.1f}" y2="{y(v):.1f}" stroke="{p["line"]}" stroke-width="1"/>'
         f'<text x="{W - R + 6}" y="{y(v) + 4:.1f}" font-size="11" fill="{alpha(p, 0.45)}" font-family="{FONT}" style="{TNUM}">{v:.1f}</text>'
-        for v in (80.0, 79.0, 78.0)
+        for v in (80.5, 80.0, 79.5, 79.0, 78.5, 78.0)
     )
     svg = f"""<svg width="{W}" height="{H}" viewBox="0 0 {W} {H}" aria-label="Weight, last 30 days">
 {grid}
 {dots}
 <polyline points="{line}" fill="none" stroke="{BRASS}" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
 <circle cx="{x(29):.1f}" cy="{y(med[-1]):.1f}" r="4" fill="{BRASS}" stroke="{p['surface']}" stroke-width="2"/>
-<text x="{L}" y="{H - 8}" font-size="11" fill="{alpha(p, 0.45)}" font-family="{FONT}">7 Aug</text>
+<text x="{L}" y="{H - 8}" font-size="11" fill="{alpha(p, 0.45)}" font-family="{FONT}">8 Aug</text>
 <text x="{W - R}" y="{H - 8}" font-size="11" fill="{alpha(p, 0.45)}" font-family="{FONT}" text-anchor="end">6 Sep</text>
 </svg>"""
     return card(p, f"""<div style="{T_LABEL}text-transform:uppercase;color:{alpha(p, 0.5)};">Weight · 30 days</div>
 <div style="height:12px;"></div>
 {svg}
 <div style="height:8px;"></div>
-<div style="{T_CAPTION}color:{alpha(p, 0.6)};">The line is the 7-day median. The dots are each morning's reading — that spread is normal.</div>""", padding="24px 24px 20px 24px")
+<div style="{T_CAPTION}color:{alpha(p, 0.6)};">The line is the 7-day median. The dots are each reading — that spread is normal.</div>""", padding="24px 24px 20px 24px")
+
+
+def metric_grid(p, metrics):
+    # _MetricGrid: two columns, 12 px gutters, tiles 1.55:1. Each tile is a
+    # number with its uncertainty; tapping one opens the caveat and citation.
+    tile_w = (390 - 32 - 12) / 2
+    tile_h = tile_w / 1.55
+    tiles = []
+    for label, value, sub, not_measured in metrics:
+        face = p["estimated_bg"] if not_measured else p["surface"]
+        nm = f'<div style="height:4px;"></div>{badge(p, False, "Not measured", dense=True)}' if not_measured else ""
+        tiles.append(f"""<div style="width:{tile_w:.1f}px;height:{tile_h:.1f}px;box-sizing:border-box;padding:12px;border-radius:14px;border:1px solid {p['line']};background:{face};display:flex;flex-direction:column;justify-content:space-between;">
+  <div style="display:flex;flex-direction:column;align-items:flex-start;"><div style="{T_CAPTION}font-weight:600;color:{alpha(p, 0.65)};white-space:nowrap;">{label}</div>{nm}</div>
+  <div style="display:flex;flex-direction:column;"><div style="{T_DISPLAY}font-size:24px;color:{p['on']};white-space:nowrap;">{value}</div><div style="{T_CAPTION}font-size:11px;color:{alpha(p, 0.45)};white-space:nowrap;">{sub}</div></div>
+</div>""")
+    return f'<div style="display:flex;flex-wrap:wrap;gap:12px;">{"".join(tiles)}</div>'
 
 
 def body(p, height=None):
     headline = card(p, f"""<div style="{T_LABEL}text-transform:uppercase;color:{alpha(p, 0.5)};">Body fat · 7-day median</div>
 <div style="height:12px;"></div>
 <div style="display:flex;align-items:baseline;gap:4px;">
-  <div style="{T_DISPLAY}color:{p['on']};">22.1</div>
+  <div style="{T_DISPLAY}color:{p['on']};">22.9</div>
   <div style="{T_TITLE}color:{alpha(p, 0.6)};">%</div>
   <div style="flex:1;"></div>
   <div style="align-self:center;padding:8px 12px;border-radius:8px;background:{p['raised']};{T_CAPTION}color:{alpha(p, 0.7)};">± 5.0 pts</div>
 </div>
 <div style="height:12px;"></div>
-<div style="{T_CAPTION}color:{alpha(p, 0.6)};text-wrap:pretty;">Today's reading was 22.3 %. Single readings move with hydration; the median is the one to watch.</div>
+<div style="{T_CAPTION}color:{alpha(p, 0.6)};text-wrap:pretty;">Today's reading was 22.5 %. Single readings move with hydration; the median is the one to watch.</div>
 <div style="height:16px;border-bottom:1px solid {p['line']};"></div>
 <div style="height:16px;"></div>
 <div style="display:flex;align-items:center;gap:8px;">
   {icon("trend-down", 18, BRASS, 2)}
-  <div style="{T_BODY}color:{p['on']};">0.32 kg per week down over three weeks</div>
+  <div style="{T_BODY}color:{p['on']};">0.37 kg per week down over three weeks</div>
 </div>""", padding="24px")
 
-    def metric(label, value, unc=None, caveat=None, not_measured=False, last=False):
-        border = "" if last else f"border-bottom:1px solid {p['line']};"
-        nm = f'<div style="margin-left:8px;">{badge(p, False, "Not measured", dense=True)}</div>' if not_measured else ""
-        cav = f'<div style="margin-top:4px;{T_CAPTION}color:{alpha(p, 0.55)};text-wrap:pretty;">{caveat}</div>' if caveat else ""
-        u = f'<div style="{T_CAPTION}font-size:11px;color:{alpha(p, 0.45)};">{unc}</div>' if unc else ""
-        return f"""<div style="display:flex;align-items:center;gap:12px;padding:8px 16px;{border}">
-  <div style="flex:1;min-width:0;">
-    <div style="display:flex;align-items:center;"><div style="{T_BODY_STRONG}color:{p['on']};">{label}</div>{nm}</div>
-    {cav}
-  </div>
-  <div style="display:flex;flex-direction:column;align-items:flex-end;flex:none;">
-    <div style="{T_NUMBER}font-size:17px;color:{p['on']};white-space:nowrap;">{value}</div>{u}
-  </div>
-</div>"""
-
-    reading = section(p, "This reading", card(p,
-        metric("Weight", "78.4 kg", "±0.1 kg")
-        + metric("BMI", "24.7")
-        + metric("Fat-free mass", "60.9 kg", "±3.9 kg")
-        + metric("Body fat", "22.3 %", "±5.0 %", "Bioimpedance is reliable for tracking change over weeks, not for a single absolute figure.")
-        + metric("Fat mass", "17.5 kg", "±3.9 kg")
-        + metric("Body water", "43.8 L", "±3.8 L", "Body water and fat-free mass are two views of the same measurement, so they always move together.")
-        + metric("Skeletal muscle", "31.9 kg", "±2.7 kg", "Validated against MRI. This is skeletal muscle only — lower than the \"muscle mass\" most scales report, which includes organs and connective tissue.")
-        + metric("Bone mass", "3.5 kg", None, "Bone does not conduct the measurement current, so this is a fixed proportion of your fat-free mass rather than a reading. It will move when your weight moves; that is not bone change.", not_measured=True)
-        + metric("Resting energy", "1840 kcal/day", "±184 kcal/day", last=True),
-    ))
+    reading = section(p, "This reading", metric_grid(p, [
+        ("Weight", "78.7 kg", "±0.1 kg", False),
+        ("BMI", "24.8", "&nbsp;", False),
+        ("Fat-free mass", "61.0 kg", "±3.9 kg", False),
+        ("Body fat", "22.5 %", "±5.0 %", False),
+        ("Fat mass", "17.7 kg", "±3.9 kg", False),
+        ("Body water", "44.0 L", "±3.8 L", False),
+        ("Skeletal muscle", "31.9 kg", "±2.7 kg", False),
+        ("Bone mass", "3.5 kg", "&nbsp;", True),
+        ("Resting energy", "1,842 kcal/day", "±184 kcal/day", False),
+    ]))
 
     method = card(p, f"""<div style="{T_HEADING}color:{p['on']};">How these numbers are worked out</div>
 <div style="height:8px;"></div>
@@ -540,7 +716,7 @@ def body(p, height=None):
 Bioimpedance is good at showing change over weeks and poor at absolute figures for one person on one day. Mananu shows you the trend for that reason.</div>""", padding="16px")
 
     inner = f"""{status_space()}
-{app_bar(p, "Body", actions=icon_button(p, "info"))}
+{header(p, "Body", "Last reading Sun 6 Sep, 07:12", actions=icon_button(p, "info"))}
 {scroll(headline + body_chart(p) + reading + method)}
 {nav_bar(p, "scale")}
 {fab(p)}
@@ -588,7 +764,7 @@ def settings(p, height=None):
 <div style="{T_CAPTION}color:{alpha(p, 0.5)};text-wrap:pretty;">Nutrition data: McCance and Widdowson's The Composition of Foods Integrated Dataset, used under the Open Government Licence v3.0; USDA FoodData Central, public domain; barcode data from Open Food Facts under the Open Database Licence.</div>""", padding="16px"))
 
     inner = f"""{status_space()}
-{app_bar(p, "Settings")}
+{header(p, "Settings", "mananu")}
 {scroll(scales + data + about)}
 {nav_bar(p, "settings")}
 {fab(p)}
@@ -674,9 +850,9 @@ def components(p, height=None):
 # values were measured from a headless render and are re-checked whenever the
 # content changes (run with MEASURE=1 to emit natural heights instead).
 HEIGHTS = {
-    "Main": 1090, "Onboarding": 844, "WeighFood": 844, "CookingOil": 844,
-    "Body": 2114, "Settings": 1230, "TodayDark": 1090, "Recipes": 844,
-    "Components": 760,
+    "Main": 1100, "Onboarding": 844, "WeighFood": 844, "PhotoScan": 844,
+    "CookingOil": 844, "Body": 2060, "Settings": 1280, "TodayDark": 1100,
+    "Recipes": 844, "Components": 760,
 }
 MEASURE = os.environ.get("MEASURE") == "1"
 
@@ -689,6 +865,7 @@ ARTBOARDS = [
     ("Main", lambda: today(LIGHT, h("Main")), "Today", 390),
     ("Onboarding", lambda: onboarding(LIGHT, h("Onboarding")), "Onboarding", 390),
     ("WeighFood", lambda: weigh_food(LIGHT, height=h("WeighFood")), "Weigh food", 390),
+    ("PhotoScan", lambda: photo_scan(LIGHT, h("PhotoScan")), "Photo scan · results", 390),
     ("CookingOil", lambda: cooking_oil(LIGHT, h("CookingOil")), "Cooking oil", 390),
     ("Body", lambda: body(LIGHT, h("Body")), "Body", 390),
     ("Settings", lambda: settings(LIGHT, h("Settings")), "Settings", 390),
@@ -702,7 +879,7 @@ def main():
     OUT.mkdir(parents=True, exist_ok=True)
     layout = []
     x = 0
-    row1 = ["Main", "Onboarding", "WeighFood", "CookingOil", "Body", "Settings"]
+    row1 = ["Main", "Onboarding", "WeighFood", "PhotoScan", "CookingOil", "Body", "Settings"]
     row2 = ["TodayDark", "Recipes", "Components"]
     positions = {}
     for name in row1:
@@ -720,9 +897,11 @@ def main():
         "artboards": layout,
         "annotations": [
             {"id": "note-brief", "x": 0, "y": -150, "w": 440,
-             "text": "Mananu — app screens. Every value comes from app/lib/theme/tokens.dart: Inter, 14 px cards, 54 px buttons, brass on paper. Green is reserved for weighed values and tan for estimated ones; nothing else uses those two colours.\nBody shows the whole scrolled page; the phone shows the top 844 px."},
-            {"id": "note-body", "x": 1880, "y": -110, "w": 390,
-             "text": "Trend chart is new here (Phase 6 in HANDOFF.md). Median line, raw readings as faint dots, so the noise is visible and honest."},
+             "text": "Mananu — app screens. Every value comes from app/lib/theme/tokens.dart: Inter, 14 px cards, 54 px buttons, brass on paper. Green is reserved for weighed values and tan for estimated ones; nothing else uses those two colours.\nToday, Body and Settings show the whole scrolled page; the phone shows the top 844 px."},
+            {"id": "note-photo", "x": 1410, "y": -110, "w": 390,
+             "text": "Photo scan: the model only says WHAT is on the plate. Every candidate is matched to the food database; the grams come from the scale when the user captures. No quantity is ever asked of the photo."},
+            {"id": "note-body", "x": 2350, "y": -110, "w": 390,
+             "text": "Body: the trend leads, the reading follows. Median line over faint raw dots so the noise is visible and honest; every tile opens its caveat and citation."},
             {"id": "note-recipes", "x": 470, "y": 1900, "w": 390,
              "text": "Recipes is a proposal for the Phase 6 screen. The model already exists in core/nutrition/portion.dart."},
         ],

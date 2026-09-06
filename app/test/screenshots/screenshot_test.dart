@@ -1,0 +1,315 @@
+@Tags(['screenshots'])
+library;
+
+import 'dart:io';
+import 'dart:ui' as ui;
+
+import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:mananu/app.dart';
+import 'package:mananu/core/bia/body_composition.dart';
+import 'package:mananu/core/bia/equations.dart';
+import 'package:mananu/core/data/providers.dart';
+import 'package:mananu/core/food/food_catalog.dart';
+import 'package:mananu/core/nutrition/models.dart';
+import 'package:mananu/core/nutrition/portion.dart';
+import 'package:mananu/features/food/weigh_food_screen.dart';
+import 'package:mananu/theme/tokens.dart';
+
+/// Renders the real screens at phone size and writes PNGs, so the design can
+/// be looked at without a device. Runs as an ordinary test everywhere (it
+/// exercises every screen with data); it only writes files when
+/// MANANU_SHOTS_DIR is set, and only uses a real typeface when
+/// MANANU_FONT_PATH points at one or more TTFs (colon-separated; give the
+/// regular and bold cuts so weights render) — flutter_tester otherwise draws
+/// text as boxes.
+///
+///   MANANU_SHOTS_DIR=/tmp/shots \
+///   MANANU_FONT_PATH=/fonts/Sans-Regular.ttf:/fonts/Sans-Bold.ttf \
+///     flutter test test/screenshots --tags screenshots
+void main() {
+  final shotsDir = Platform.environment['MANANU_SHOTS_DIR'];
+  final fontPath = Platform.environment['MANANU_FONT_PATH'];
+  late AppServices services;
+  late FoodCatalog catalog;
+
+  setUpAll(() async {
+    final files = (fontPath ?? '')
+        .split(':')
+        .map(File.new)
+        .where((f) => f.path.isNotEmpty && f.existsSync())
+        .toList();
+    if (files.isEmpty) return;
+    final loader = FontLoader('Shot');
+    for (final f in files) {
+      final bytes = f.readAsBytesSync();
+      loader.addFont(Future.value(ByteData.view(bytes.buffer)));
+    }
+    await loader.load();
+  });
+
+  setUp(() async {
+    services = AppServices.inMemory();
+    catalog = FoodCatalog.inMemory();
+    await _seed(services);
+  });
+
+  tearDown(() async {
+    catalog.close();
+    await services.db.close();
+  });
+
+  ThemeData themed(ThemeData base) => fontPath == null
+      ? base
+      : base.copyWith(textTheme: base.textTheme.apply(fontFamily: 'Shot'));
+
+  Widget app({required Widget home, Brightness brightness = Brightness.light}) =>
+      ProviderScope(
+        overrides: [
+          appServicesProvider.overrideWith((ref) async => services),
+          foodCatalogProvider.overrideWith((ref) async => catalog),
+        ],
+        child: MaterialApp(
+          debugShowCheckedModeBanner: false,
+          theme: themed(MananuTheme.light()),
+          darkTheme: themed(MananuTheme.dark()),
+          themeMode:
+              brightness == Brightness.dark ? ThemeMode.dark : ThemeMode.light,
+          home: home,
+        ),
+      );
+
+  Future<void> shoot(WidgetTester tester, String name) async {
+    for (var i = 0; i < 10; i++) {
+      await tester.pump(const Duration(milliseconds: 120));
+    }
+    if (shotsDir == null) return;
+    final boundary = tester.renderObject<RenderRepaintBoundary>(
+      find.byType(RepaintBoundary).first,
+    );
+    await tester.runAsync(() async {
+      final image = await boundary.toImage(pixelRatio: 2);
+      final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+      Directory(shotsDir).createSync(recursive: true);
+      File('$shotsDir/$name.png').writeAsBytesSync(bytes!.buffer.asUint8List());
+    });
+  }
+
+  Future<void> phone(WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1170, 2532);
+    tester.view.devicePixelRatio = 3.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+  }
+
+  Future<void> shutDown(WidgetTester tester) async {
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(seconds: 2));
+  }
+
+  testWidgets('today', (tester) async {
+    await phone(tester);
+    await tester.pumpWidget(app(home: const RepaintBoundary(child: MananuRoot())));
+    await shoot(tester, 'today');
+    await shutDown(tester);
+  });
+
+  testWidgets('today dark', (tester) async {
+    await phone(tester);
+    await tester.pumpWidget(
+      app(
+        home: const RepaintBoundary(child: MananuRoot()),
+        brightness: Brightness.dark,
+      ),
+    );
+    await shoot(tester, 'today-dark');
+    await shutDown(tester);
+  });
+
+  testWidgets('body', (tester) async {
+    await phone(tester);
+    await tester.pumpWidget(app(home: const RepaintBoundary(child: MananuRoot())));
+    for (var i = 0; i < 10; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    await tester.tap(
+      find.descendant(of: find.byType(NavigationBar), matching: find.text('Body')),
+    );
+    await shoot(tester, 'body');
+    await shutDown(tester);
+  });
+
+  testWidgets('settings', (tester) async {
+    await phone(tester);
+    await tester.pumpWidget(app(home: const RepaintBoundary(child: MananuRoot())));
+    for (var i = 0; i < 10; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    await tester.tap(
+      find.descendant(
+        of: find.byType(NavigationBar),
+        matching: find.text('Settings'),
+      ),
+    );
+    await shoot(tester, 'settings');
+    await shutDown(tester);
+  });
+
+  testWidgets('weigh food', (tester) async {
+    await phone(tester);
+    await tester.pumpWidget(
+      app(home: const RepaintBoundary(child: WeighFoodScreen())),
+    );
+    // Let the demo scale connect, then put something on it and capture an
+    // ingredient so the list and summary bar are populated.
+    await tester.pump(const Duration(seconds: 1));
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(WeighFoodScreen)),
+    );
+    container.read(weighSessionProvider.notifier).addTared(
+          food: _rice,
+          grams: 75,
+        );
+    await tester.pump(const Duration(milliseconds: 300));
+    await shoot(tester, 'weigh-food');
+    await shutDown(tester);
+  });
+
+  testWidgets('onboarding', (tester) async {
+    await phone(tester);
+    final fresh = AppServices.inMemory();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          appServicesProvider.overrideWith((ref) async => fresh),
+          foodCatalogProvider.overrideWith((ref) async => catalog),
+        ],
+        child: MaterialApp(
+          debugShowCheckedModeBanner: false,
+          theme: themed(MananuTheme.light()),
+          home: const RepaintBoundary(child: MananuRoot()),
+        ),
+      ),
+    );
+    await shoot(tester, 'onboarding');
+    await shutDown(tester);
+    await fresh.db.close();
+  });
+}
+
+const _rice = FoodItem(
+  id: 'cofid:11-020',
+  name: 'Basmati rice, dry',
+  per100g: NutrientsPer100g(kcal: 356, proteinG: 8.1, carbG: 78, fatG: 1.0),
+  source: NutritionSource.cofid,
+);
+const _chicken = FoodItem(
+  id: 'cofid:13-001',
+  name: 'Chicken breast, grilled',
+  per100g: NutrientsPer100g(kcal: 165, proteinG: 31, fatG: 3.6, carbG: 0),
+  source: NutritionSource.cofid,
+  state: FoodState.cooked,
+);
+const _oats = FoodItem(
+  id: 'cofid:oats',
+  name: 'Porridge oats',
+  per100g: NutrientsPer100g(kcal: 379, proteinG: 11, carbG: 60, fatG: 8),
+  source: NutritionSource.cofid,
+);
+const _yogurt = FoodItem(
+  id: 'cofid:yog',
+  name: 'Greek yogurt',
+  per100g: NutrientsPer100g(kcal: 133, proteinG: 5.7, carbG: 4.8, fatG: 10.2),
+  source: NutritionSource.cofid,
+);
+const _apple = FoodItem(
+  id: 'est:apple',
+  name: 'Apple, medium',
+  per100g: NutrientsPer100g(kcal: 52, carbG: 14, fatG: 0.2, proteinG: 0.3),
+  source: NutritionSource.estimated,
+);
+const _oil = FoodItem(
+  id: 'cofid:oil',
+  name: 'Olive oil',
+  per100g: NutrientsPer100g(kcal: 884, fatG: 100, saturatesG: 14),
+  source: NutritionSource.cofid,
+);
+
+/// A believable day and a month of readings: 178 cm, 34, male, 500 Ω, weight
+/// drifting down from 80 to 78.4 kg — the persona the design canvas uses.
+Future<void> _seed(AppServices s) async {
+  final now = DateTime.now();
+  await s.profiles.save(
+    heightCm: 178,
+    dateOfBirth: UserProfile.dateOfBirthForAge(34, today: now),
+    sex: Sex.male,
+    activity: ActivityLevel.lowActive,
+  );
+  await s.profiles.recordConsent(
+    ConsentRecord(
+      purpose: ConsentRecord.bodyComposition,
+      policyVersion: ConsentRecord.currentPolicyVersion,
+      granted: true,
+      grantedAt: now,
+    ),
+  );
+
+  final breakfast = WeighSession()
+    ..addTared(food: _oats, grams: 60)
+    ..addTared(food: _yogurt, grams: 150);
+  await s.meals.logMeal(
+    components: breakfast.components,
+    eatenAt: DateTime(now.year, now.month, now.day, 7, 40),
+    slot: MealSlot.breakfast,
+  );
+  final lunch = WeighSession()
+    ..addTared(food: _chicken, grams: 160)
+    ..addTared(food: _rice, grams: 75)
+    ..addCookingFat(
+      const CookingFatCapture(
+        fat: _oil,
+        gramsAdded: 15,
+        gramsRemaining: 3,
+        portions: 2,
+      ),
+    );
+  await s.meals.logMeal(
+    components: lunch.components,
+    eatenAt: DateTime(now.year, now.month, now.day, 12, 55),
+    slot: MealSlot.lunch,
+  );
+  final snack = WeighSession()
+    ..addUnweighed(
+      food: _apple,
+      grams: 180,
+      method: PortionMethod.householdMeasure,
+    );
+  await s.meals.logMeal(
+    components: snack.components,
+    eatenAt: DateTime(now.year, now.month, now.day, 16, 10),
+    slot: MealSlot.snack,
+  );
+
+  const engine = BodyCompositionEngine();
+  const noise = [0.3, -0.2, 0.4, -0.1, 0.5, -0.3, 0.1, -0.4, 0.2, 0.0];
+  for (var d = 29; d >= 0; d--) {
+    final kg = 80.0 - (29 - d) * 0.055 + noise[d % noise.length];
+    final input = BiaInput(
+      heightCm: 178,
+      weightKg: double.parse(kg.toStringAsFixed(1)),
+      ageYears: 34,
+      sex: Sex.male,
+      resistanceOhm: 500 + (d % 5) * 4,
+    );
+    final at = DateTime(now.year, now.month, now.day, 7, 12)
+        .subtract(Duration(days: d));
+    await s.body.record(
+      result: engine.evaluate(input: input, takenAt: at),
+      input: input,
+      source: 'simulated_scale',
+    );
+  }
+}

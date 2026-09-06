@@ -6,7 +6,7 @@
       "x": 0,
       "y": 0,
       "w": 390,
-      "h": 1090
+      "h": 1100
     },
     {
       "file": "Onboarding.dc.html",
@@ -25,9 +25,17 @@
       "h": 844
     },
     {
+      "file": "PhotoScan.dc.html",
+      "title": "Photo scan \u00b7 results",
+      "x": 1410,
+      "y": 0,
+      "w": 390,
+      "h": 844
+    },
+    {
       "file": "CookingOil.dc.html",
       "title": "Cooking oil",
-      "x": 1410,
+      "x": 1880,
       "y": 0,
       "w": 390,
       "h": 844
@@ -35,32 +43,32 @@
     {
       "file": "Body.dc.html",
       "title": "Body",
-      "x": 1880,
+      "x": 2350,
       "y": 0,
       "w": 390,
-      "h": 2114
+      "h": 2060
     },
     {
       "file": "Settings.dc.html",
       "title": "Settings",
-      "x": 2350,
+      "x": 2820,
       "y": 0,
       "w": 390,
-      "h": 1230
+      "h": 1280
     },
     {
       "file": "TodayDark.dc.html",
       "title": "Today \u00b7 dark",
       "x": 0,
-      "y": 2234,
+      "y": 2180,
       "w": 390,
-      "h": 1090
+      "h": 1100
     },
     {
       "file": "Recipes.dc.html",
       "title": "Recipes \u00b7 planned (phase 6)",
       "x": 470,
-      "y": 2234,
+      "y": 2180,
       "w": 390,
       "h": 844
     },
@@ -68,7 +76,7 @@
       "file": "Components.dc.html",
       "title": "Components",
       "x": 940,
-      "y": 2234,
+      "y": 2180,
       "w": 900,
       "h": 760
     }
@@ -79,14 +87,21 @@
       "x": 0,
       "y": -150,
       "w": 440,
-      "text": "Mananu \u2014 app screens. Every value comes from app/lib/theme/tokens.dart: Inter, 14 px cards, 54 px buttons, brass on paper. Green is reserved for weighed values and tan for estimated ones; nothing else uses those two colours.\nBody shows the whole scrolled page; the phone shows the top 844 px."
+      "text": "Mananu \u2014 app screens. Every value comes from app/lib/theme/tokens.dart: Inter, 14 px cards, 54 px buttons, brass on paper. Green is reserved for weighed values and tan for estimated ones; nothing else uses those two colours.\nToday, Body and Settings show the whole scrolled page; the phone shows the top 844 px."
+    },
+    {
+      "id": "note-photo",
+      "x": 1410,
+      "y": -110,
+      "w": 390,
+      "text": "Photo scan: the model only says WHAT is on the plate. Every candidate is matched to the food database; the grams come from the scale when the user captures. No quantity is ever asked of the photo."
     },
     {
       "id": "note-body",
-      "x": 1880,
+      "x": 2350,
       "y": -110,
       "w": 390,
-      "text": "Trend chart is new here (Phase 6 in HANDOFF.md). Median line, raw readings as faint dots, so the noise is visible and honest."
+      "text": "Body: the trend leads, the reading follows. Median line over faint raw dots so the noise is visible and honest; every tile opens its caveat and citation."
     },
     {
       "id": "note-recipes",

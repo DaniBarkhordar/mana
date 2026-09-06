@@ -233,6 +233,15 @@ class _TrendHeadline extends StatelessWidget {
 /// Weight over the last thirty days: the rolling median as a line, each raw
 /// reading as a faint dot behind it. The trend is the signal; the dots show
 /// the noise honestly.
+/// A round gridline step giving three to five bands over [range] kg:
+/// 0.5, 1, 2, 5 or 10.
+double _niceStep(double range) {
+  for (final step in const [0.5, 1.0, 2.0, 5.0]) {
+    if (range / step <= 4.5) return step;
+  }
+  return 10;
+}
+
 class _WeightChartCard extends StatelessWidget {
   const _WeightChartCard({required this.series});
 
@@ -276,9 +285,13 @@ class _WeightChartCard extends StatelessWidget {
       lo = mid - 1;
       hi = mid + 1;
     }
-    lo = lo.floorToDouble() - 0.5;
-    hi = hi.ceilToDouble() + 0.5;
-    final yInterval = ((hi - lo) / 3).clamp(0.5, 20.0);
+    // Snap the band to whole steps of a round interval so every axis label
+    // sits on a gridline: fl_chart also labels the ends of the range, and an
+    // unaligned end lands a label a hair away from the last step.
+    final yInterval = _niceStep(hi - lo);
+    lo = (lo / yInterval).floorToDouble() * yInterval;
+    hi = (hi / yInterval).ceilToDouble() * yInterval;
+    if (hi - lo < yInterval * 2) hi += yInterval;
     final maxX = x(window.last.at);
     final muted = scheme.onSurface.withValues(alpha: 0.45);
     final dateFormat = DateFormat('d MMM');

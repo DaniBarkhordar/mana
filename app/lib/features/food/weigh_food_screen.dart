@@ -629,30 +629,36 @@ class _MealSummaryBar extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.baseline,
-                    textBaseline: TextBaseline.alphabetic,
-                    children: [
-                      Text(
-                        '${totals.kcal.round()}',
-                        style: MananuType.display
-                            .copyWith(color: scheme.onSurface, fontSize: 30),
-                      ),
-                      const SizedBox(width: 4),
-                      const Text('kcal', style: MananuType.caption),
-                      const SizedBox(width: MananuSpacing.sm),
-
-                      // The honest uncertainty band. Never a single headline
-                      // accuracy percentage: accuracy depends entirely on the
-                      // meal, and a system-wide figure is a claim that cannot be
-                      // substantiated.
-                      Text(
-                        '±${(totals.relativeError * 100).round()}%',
-                        style: MananuType.caption.copyWith(
-                          color: scheme.onSurface.withValues(alpha: 0.5),
+                  // Shrinks as one piece under large text rather than
+                  // pushing the button off the edge.
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.baseline,
+                      textBaseline: TextBaseline.alphabetic,
+                      children: [
+                        Text(
+                          '${totals.kcal.round()}',
+                          style: MananuType.display
+                              .copyWith(color: scheme.onSurface, fontSize: 30),
                         ),
-                      ),
-                    ],
+                        const SizedBox(width: 4),
+                        const Text('kcal', style: MananuType.caption),
+                        const SizedBox(width: MananuSpacing.sm),
+
+                        // The honest uncertainty band. Never a single headline
+                        // accuracy percentage: accuracy depends entirely on the
+                        // meal, and a system-wide figure is a claim that cannot be
+                        // substantiated.
+                        Text(
+                          '±${(totals.relativeError * 100).round()}%',
+                          style: MananuType.caption.copyWith(
+                            color: scheme.onSurface.withValues(alpha: 0.5),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                   const SizedBox(height: 2),
                   Text(

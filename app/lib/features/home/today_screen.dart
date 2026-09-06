@@ -363,7 +363,14 @@ class _MealRow extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      Text(meal.slot.label, style: MananuType.bodyStrong),
+                      Flexible(
+                        child: Text(
+                          meal.slot.label,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: MananuType.bodyStrong,
+                        ),
+                      ),
                       if (!meal.isSynced) ...[
                         const SizedBox(width: 6),
                         // Quietly: safe on this phone, not yet backed up.
