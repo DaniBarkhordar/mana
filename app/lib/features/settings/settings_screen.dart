@@ -66,13 +66,7 @@ class SettingsScreen extends ConsumerWidget {
                         'keep working without it.',
                   ),
                   const Divider(height: 1),
-                  const _NavTile(
-                    icon: Icons.auto_awesome_outlined,
-                    title: 'Photo recognition',
-                    subtitle: 'Meal photos are sent to our AI provider only '
-                        'when you take one. Turn this off and search still '
-                        'works.',
-                  ),
+                  const _PhotoConsentTile(),
                   const Divider(height: 1),
                   const _NavTile(
                     icon: Icons.download_outlined,
@@ -215,6 +209,49 @@ class _BackupTile extends ConsumerWidget {
               child: const Text('Sync now'),
             )
           : null,
+    );
+  }
+}
+
+/// Withdrawing must be as easy as granting (UK GDPR Art 7(3)). Each flip is a
+/// new consent row, never an edit.
+class _PhotoConsentTile extends ConsumerWidget {
+  const _PhotoConsentTile();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final consent = ref.watch(photoConsentProvider).valueOrNull;
+    final granted = consent?.granted ?? false;
+    return SwitchListTile(
+      contentPadding: const EdgeInsets.symmetric(
+        horizontal: MananuSpacing.lg,
+        vertical: MananuSpacing.sm,
+      ),
+      secondary: Icon(
+        Icons.auto_awesome_outlined,
+        color: Theme.of(context).colorScheme.onSurface,
+        size: 21,
+      ),
+      title: const Text('Photo recognition', style: MananuType.bodyStrong),
+      subtitle: Text(
+        granted
+            ? 'A photo goes to ${VisionConfig.providerName} only when you '
+                'take one, to name the food. Nothing else is sent.'
+            : 'Off. Search and barcodes still work; the scale always does.',
+        style: MananuType.caption,
+      ),
+      value: granted,
+      onChanged: (v) async {
+        final services = await ref.read(appServicesProvider.future);
+        await services.profiles.recordConsent(
+          ConsentRecord(
+            purpose: ConsentRecord.photoRecognition,
+            policyVersion: ConsentRecord.currentPolicyVersion,
+            granted: v,
+            grantedAt: DateTime.now(),
+          ),
+        );
+      },
     );
   }
 }

@@ -9,13 +9,17 @@
 library;
 
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../bia/body_composition.dart';
 import '../bia/equations.dart';
 import '../food/food_catalog.dart';
+import '../food/food_identifier.dart';
 import '../food/food_search.dart';
 import '../food/open_food_facts.dart';
 import '../food/starter_foods.dart';
@@ -70,13 +74,18 @@ class AppServices {
     required this.observations,
     required this.userFoods,
     this.sync,
+    this.supabase,
   });
 
   /// Everything in memory: tests and previews.
   factory AppServices.inMemory({SyncScheduler? sync}) =>
       AppServices.over(AppDatabase.memory(), sync: sync);
 
-  factory AppServices.over(AppDatabase db, {SyncScheduler? sync}) {
+  factory AppServices.over(
+    AppDatabase db, {
+    SyncScheduler? sync,
+    SupabaseClient? supabase,
+  }) {
     final observations = ObservationRepository(db);
     return AppServices(
       db: db,
@@ -86,6 +95,7 @@ class AppServices {
       observations: observations,
       userFoods: UserFoodRepository(db),
       sync: sync,
+      supabase: supabase,
     );
   }
 
@@ -99,7 +109,22 @@ class AppServices {
   /// Null when no backend is configured: the app is local-only.
   final SyncScheduler? sync;
 
+  /// The backend client, when one was initialised. Used for the vision
+  /// function; never for reading health data directly (sync does that).
+  final SupabaseClient? supabase;
+
   bool get canSync => sync != null;
+}
+
+/// Which AI provider the vision function is deployed against, for the
+/// consent text. Set at build time to match `VISION_MODEL` on the server.
+class VisionConfig {
+  const VisionConfig._();
+
+  static const providerName = String.fromEnvironment(
+    'VISION_PROVIDER',
+    defaultValue: 'Google (Gemini)',
+  );
 }
 
 /// Opens the database and, when configured, the backend. Tolerant on purpose:
@@ -110,19 +135,19 @@ final appServicesProvider = FutureProvider<AppServices>((ref) async {
   await db.localUserId();
 
   SyncScheduler? sync;
+  SupabaseClient? supabase;
   if (SupabaseConfig.isConfigured) {
     try {
       await Supabase.initialize(
         url: SupabaseConfig.url,
         publishableKey: SupabaseConfig.publishableKey,
       );
-      final engine = SyncEngine(
-        db: db,
-        remote: SupabaseSyncRemote(Supabase.instance.client),
-      );
+      supabase = Supabase.instance.client;
+      final engine = SyncEngine(db: db, remote: SupabaseSyncRemote(supabase));
       sync = SyncScheduler(engine: engine, db: db)..start();
     } on Object {
       sync = null;
+      supabase = null;
     }
   }
 
@@ -130,7 +155,7 @@ final appServicesProvider = FutureProvider<AppServices>((ref) async {
     sync?.stop();
     db.close();
   });
-  return AppServices.over(db, sync: sync);
+  return AppServices.over(db, sync: sync, supabase: supabase);
 });
 
 // ---------------------------------------------------------------------------
@@ -162,6 +187,37 @@ final openFoodFactsProvider = Provider<OpenFoodFactsClient>((ref) {
   return client;
 });
 
+/// Photo identification through the Edge Function, or an honest "not
+/// available" in a build with no backend. Tests override this with a fake.
+final foodIdentifierProvider = Provider<FoodIdentifier>((ref) {
+  final client = ref.watch(appServicesProvider).valueOrNull?.supabase;
+  if (client == null) return const UnavailableFoodIdentifier();
+  return SupabaseFoodIdentifier(client);
+});
+
+final foodMatcherProvider = FutureProvider<FoodMatcher>((ref) async {
+  return FoodMatcher(await ref.watch(foodSearchProvider.future));
+});
+
+/// Takes a photo with the system camera and returns its bytes, or null when
+/// the user backs out. Overridden in tests to inject an image.
+final photoCaptureProvider = Provider<Future<Uint8List?> Function()>((ref) {
+  return () async {
+    // Android: a CAMERA permission declared in the manifest (the barcode
+    // scanner needs it) must also be held at runtime before the camera
+    // intent will open.
+    final status = await Permission.camera.request();
+    if (!status.isGranted && !status.isLimited) return null;
+    final picked = await ImagePicker().pickImage(
+      source: ImageSource.camera,
+      maxWidth: 1280,
+      maxHeight: 1280,
+      imageQuality: 88,
+    );
+    return picked?.readAsBytes();
+  };
+});
+
 // ---------------------------------------------------------------------------
 // Profile
 // ---------------------------------------------------------------------------
@@ -179,6 +235,13 @@ final bodyCompositionConsentProvider = StreamProvider<ConsentRecord?>(
     yield* s.profiles.watchLatestConsent(ConsentRecord.bodyComposition);
   },
 );
+
+/// Whether photos may go to the AI provider. Asked separately, before the
+/// first scan, and switchable in Settings.
+final photoConsentProvider = StreamProvider<ConsentRecord?>((ref) async* {
+  final s = await ref.watch(appServicesProvider.future);
+  yield* s.profiles.watchLatestConsent(ConsentRecord.photoRecognition);
+});
 
 // ---------------------------------------------------------------------------
 // Scales

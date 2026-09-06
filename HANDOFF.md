@@ -17,6 +17,7 @@ Everything needed to finish the app is in this repo or in this document. Nothing
 | Frame parsers for four BLE protocols, tested against captured ground-truth frames | The `core.sqlite` data file itself — the pipeline is built and tested; run it where gov.uk and usda.gov are reachable (Phase 2) |
 | Portion engine — running tare, yield factors, cooking-fat capture, personal calibration | |
 | **Offline food search, barcode lookup, "from the pack" foods — Phase 2, code done.** FTS5 catalogue with exact/prefix ranking, user foods first, Open Food Facts cached per user | |
+| **Photo identification, end to end.** Consent → camera → 512 px → `identify-food` → catalogue match → weigh. Never asks for grams. Tested with a fake identifier; needs the function deployed for real replies | |
 | Supabase schema: RLS, consent records, cascade deletion, vision cache and metering, `observations` | Recipes UI (the model exists, no screen; a design is on the canvas) |
 | **Local persistence (Drift) and background sync — Phase 1, done.** Every screen reads SQLite; meals, readings, profile and consent survive a restart; unsynced rows push when a session exists, last-write-wins on `updated_at` | RevenueCat / paywall |
 | Vision Edge Function — cached, metered, context-enriched | Health Connect / HealthKit sync |
@@ -165,7 +166,7 @@ What is needed, and who to ask — the full list with wording is in `docs/01-fac
 4. In-app account deletion calling `public.delete_my_account()`. Mandatory under Apple 5.1.1(v), and Article 17 is not satisfied by a soft-delete flag.
 5. CSV export of everything.
 6. RevenueCat: free tier and Plus. Mirror entitlements into `public.entitlements` from the webhook — **the app never decides its own tier**.
-7. A separate, explicit consent before the first photo scan, naming the AI provider. Apple 5.1.2(i) requires explicit permission before sharing data with third-party AI, and this is directly on point.
+7. ~~A separate, explicit consent before the first photo scan, naming the AI provider.~~ **Done.** `PhotoIdentifySheet` asks before the first scan and names the provider (`--dart-define=VISION_PROVIDER=...`, default "Google (Gemini)" to match the function's default model); Settings → Photo recognition switches it, each flip a new consent row. The scan itself is live end to end once the Edge Function is deployed (runbook §3): 512 px on device, context sent, candidates matched to the catalogue, grams from the scale. In a build with no backend the sheet says so and search still works.
 8. Keep the local database out of iCloud. Android is done (`allowBackup="false"` and data-extraction rules in the manifest). iOS needs `NSURLIsExcludedFromBackupKey` set on `mananu.sqlite` from native code — a few lines in `AppDelegate.swift` behind a method channel, or a tiny plugin. See `AppDatabase.open()`.
 9. Link the anonymous user created by sync to the real sign-in (`linkIdentity` / `updateUser`), rather than creating a second user, so nothing is re-keyed.
 

@@ -25,6 +25,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/data/providers.dart';
+import '../../core/food/food_identifier.dart';
 import '../../core/food/food_search.dart';
 import '../../core/food/starter_foods.dart';
 import '../../core/nutrition/models.dart';
@@ -33,6 +34,7 @@ import '../../core/scale/scale_driver.dart';
 import '../../theme/tokens.dart';
 import 'add_food_sheet.dart';
 import 'barcode_scan_screen.dart';
+import 'photo_identify_sheet.dart';
 
 class WeighFoodScreen extends ConsumerStatefulWidget {
   const WeighFoodScreen({super.key});
@@ -43,6 +45,10 @@ class WeighFoodScreen extends ConsumerStatefulWidget {
 
 class _WeighFoodScreenState extends ConsumerState<WeighFoodScreen> {
   FoodItem? _pending;
+
+  /// The last photo's components, so the next one can be picked without
+  /// another scan.
+  List<MatchedCandidate> _fromPhoto = const [];
 
   @override
   Widget build(BuildContext context) {
@@ -82,6 +88,12 @@ class _WeighFoodScreenState extends ConsumerState<WeighFoodScreen> {
           if (driver is SimulatedScaleDriver)
             _DemoLoadControls(driver: driver, currentGrams: grams),
           const Divider(height: 1),
+          if (_fromPhoto.isNotEmpty)
+            _FromPhotoStrip(
+              matched: _fromPhoto,
+              onPick: (food) => setState(() => _pending = food),
+              onDismiss: () => setState(() => _fromPhoto = const []),
+            ),
           Expanded(
             child: components.isEmpty
                 ? _EmptyState(onPickFood: _pickFood)
@@ -132,13 +144,17 @@ class _WeighFoodScreenState extends ConsumerState<WeighFoodScreen> {
     // The camera names the food. The scale weighs it. Nothing here asks a model
     // how many grams are on the plate, which is where the rest of the category
     // spends its error budget.
-    final picked = await showModalBottomSheet<FoodItem>(
-      context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
-      builder: (_) => const _PhotoIdentifySheet(),
+    final live = ref.read(liveGramsProvider).valueOrNull?.grams;
+    final outcome = await PhotoIdentifySheet.show(
+      context,
+      measuredGrams: live != null && live > 1 ? live : null,
     );
-    if (picked != null) setState(() => _pending = picked);
+    if (outcome == null || !mounted) return;
+    setState(() {
+      _fromPhoto = outcome.matched.where((m) => m.best != null).toList();
+      if (outcome.picked != null) _pending = outcome.picked;
+    });
+    if (outcome.wantsCookingFat) await _addCookingFat();
   }
 
   Future<void> _addCookingFat() async {
@@ -928,37 +944,64 @@ class _NoResults extends StatelessWidget {
   }
 }
 
-class _PhotoIdentifySheet extends StatelessWidget {
-  const _PhotoIdentifySheet();
+/// The components the last photo found, one tap each. The chosen one becomes
+/// the pending ingredient; the grams still come from the scale.
+class _FromPhotoStrip extends StatelessWidget {
+  const _FromPhotoStrip({
+    required this.matched,
+    required this.onPick,
+    required this.onDismiss,
+  });
+
+  final List<MatchedCandidate> matched;
+  final ValueChanged<FoodItem> onPick;
+  final VoidCallback onDismiss;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return Padding(
-      padding: const EdgeInsets.all(MananuSpacing.xl),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+    return Container(
+      color: scheme.surface,
+      padding: const EdgeInsets.fromLTRB(
+        MananuSpacing.lg,
+        MananuSpacing.sm,
+        MananuSpacing.sm,
+        MananuSpacing.sm,
+      ),
+      child: Row(
         children: [
-          const Text('Photograph the plate', style: MananuType.title),
-          const SizedBox(height: MananuSpacing.sm),
           Text(
-            'Mananu uses the photo to work out what the food is. The amount comes '
-            'from the scale, so there is no guessing at portion size.',
-            style: MananuType.body.copyWith(
-              color: scheme.onSurface.withValues(alpha: 0.65),
+            'From your photo',
+            style: MananuType.label.copyWith(
+              color: scheme.onSurface.withValues(alpha: 0.45),
             ),
           ),
-          const SizedBox(height: MananuSpacing.xl),
-          FilledButton.icon(
-            onPressed: () => Navigator.of(context).pop(starterFoods.first),
-            icon: const Icon(Icons.photo_camera_outlined),
-            label: const Text('Open camera'),
+          const SizedBox(width: MananuSpacing.md),
+          Expanded(
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  for (final m in matched)
+                    Padding(
+                      padding: const EdgeInsets.only(right: MananuSpacing.sm),
+                      child: ActionChip(
+                        label: Text(m.candidate.name),
+                        labelStyle: MananuType.caption
+                            .copyWith(fontWeight: FontWeight.w600),
+                        side: BorderSide(color: scheme.outline),
+                        onPressed: () => onPick(m.best!),
+                      ),
+                    ),
+                ],
+              ),
+            ),
           ),
-          const SizedBox(height: MananuSpacing.sm),
-          OutlinedButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
+          IconButton(
+            tooltip: 'Clear',
+            visualDensity: VisualDensity.compact,
+            onPressed: onDismiss,
+            icon: const Icon(Icons.close, size: 18),
           ),
         ],
       ),
