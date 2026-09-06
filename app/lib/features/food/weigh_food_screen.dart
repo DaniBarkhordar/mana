@@ -32,6 +32,7 @@ import '../../core/nutrition/models.dart';
 import '../../core/nutrition/portion.dart';
 import '../../core/scale/scale_driver.dart';
 import '../../theme/tokens.dart';
+import '../settings/scale_pairing_sheet.dart';
 import 'add_food_sheet.dart';
 import 'barcode_scan_screen.dart';
 import 'photo_identify_sheet.dart';
@@ -45,6 +46,27 @@ class WeighFoodScreen extends ConsumerStatefulWidget {
 
 class _WeighFoodScreenState extends ConsumerState<WeighFoodScreen> {
   FoodItem? _pending;
+
+  /// Held from initState because `ref` is not usable in dispose, and giving
+  /// the radio back is the whole point of leaving.
+  late final StateController<ScaleKind> _focus;
+
+  @override
+  void initState() {
+    super.initState();
+    _focus = ref.read(scaleFocusProvider.notifier);
+    // The kitchen scale holds the radio while this screen is open; the body
+    // scale gets it back on the way out.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _focus.state = ScaleKind.kitchen;
+    });
+  }
+
+  @override
+  void dispose() {
+    if (_focus.mounted) _focus.state = ScaleKind.body;
+    super.dispose();
+  }
 
   /// The last photo's components, so the next one can be picked without
   /// another scan.
@@ -84,6 +106,10 @@ class _WeighFoodScreenState extends ConsumerState<WeighFoodScreen> {
             delta: delta,
             isStable: isStable,
             connection: connection,
+            needsPairing: !(ref.watch(demoScaleProvider).valueOrNull ?? true) &&
+                ref.watch(pairedScaleProvider(ScaleKind.kitchen)).valueOrNull ==
+                    null,
+            onPair: () => ScalePairingSheet.show(context, ScaleKind.kitchen),
           ),
           if (driver is SimulatedScaleDriver)
             _DemoLoadControls(driver: driver, currentGrams: grams),
@@ -247,12 +273,18 @@ class _ScaleReadout extends StatelessWidget {
     required this.delta,
     required this.isStable,
     required this.connection,
+    this.needsPairing = false,
+    this.onPair,
   });
 
   final double grams;
   final double delta;
   final bool isStable;
   final ScaleConnectionState? connection;
+
+  /// No kitchen scale has been chosen on this phone yet.
+  final bool needsPairing;
+  final VoidCallback? onPair;
 
   @override
   Widget build(BuildContext context) {
@@ -283,11 +315,25 @@ class _ScaleReadout extends StatelessWidget {
               ),
               const SizedBox(width: MananuSpacing.sm),
               Text(
-                connected ? 'Scale connected' : 'Looking for your scale',
+                connected
+                    ? 'Scale connected'
+                    : needsPairing
+                        ? 'No scale paired'
+                        : 'Looking for your scale',
                 style: MananuType.label.copyWith(
                   color: scheme.onSurface.withValues(alpha: 0.55),
                 ),
               ),
+              if (needsPairing && !connected) ...[
+                const SizedBox(width: MananuSpacing.sm),
+                GestureDetector(
+                  onTap: onPair,
+                  child: Text(
+                    'PAIR',
+                    style: MananuType.label.copyWith(color: MananuColors.brass),
+                  ),
+                ),
+              ],
             ],
           ),
           const SizedBox(height: MananuSpacing.lg),

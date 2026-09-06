@@ -25,6 +25,8 @@ import '../food/open_food_facts.dart';
 import '../food/starter_foods.dart';
 import '../nutrition/models.dart';
 import '../nutrition/portion.dart';
+import '../scale/lefu_driver.dart';
+import '../scale/pairing.dart';
 import '../scale/scale_driver.dart';
 import 'db/database.dart';
 import 'models.dart';
@@ -125,6 +127,32 @@ class VisionConfig {
     'VISION_PROVIDER',
     defaultValue: 'Google (Gemini)',
   );
+}
+
+/// Vendor scale credentials, injected at build time and never committed:
+///
+/// ```
+/// flutter run --dart-define=LEFU_APP_KEY=... --dart-define=LEFU_APP_SECRET=...
+/// ```
+///
+/// plus the licence file the vendor's open platform issues, copied to
+/// `assets/lefu.config` (git-ignored). Without all three the app runs on the
+/// simulated scale and Settings says so. The demo credentials in the vendored
+/// demos are for a desk, never for a build that leaves it (docs/10-sdk.md).
+class LefuConfig {
+  const LefuConfig._();
+
+  static const appKey = String.fromEnvironment('LEFU_APP_KEY');
+  static const appSecret = String.fromEnvironment('LEFU_APP_SECRET');
+  static const configAsset = 'assets/lefu.config';
+
+  static bool get isConfigured => appKey.isNotEmpty && appSecret.isNotEmpty;
+
+  static LefuCredentials get credentials => const LefuCredentials(
+        appKey: appKey,
+        appSecret: appSecret,
+        configAsset: configAsset,
+      );
 }
 
 /// Opens the database and, when configured, the backend. Tolerant on purpose:
@@ -253,31 +281,95 @@ final photoConsentProvider = StreamProvider<ConsentRecord?>((ref) async* {
 
 /// Which driver is in play.
 ///
-/// [SimulatedScaleDriver] until the vendor driver is wired up (Phase 3).
-/// Swapping to [LefuScaleDriver] is a one-line change here and nothing else in
-/// the app moves — that is the point of the abstraction. The simulated driver
-/// stays in the release build behind a review account (CLAUDE.md rule 9).
+/// The vendor driver when the build carries credentials and the user has not
+/// switched to the demo scale; the simulated driver otherwise. The simulated
+/// driver stays in the release build behind that switch so App Review can walk
+/// the whole flow without hardware (CLAUDE.md rule 9). Nothing else in the
+/// app knows which one it got — that is the point of the abstraction.
+final demoScaleProvider = StreamProvider<bool>((ref) async* {
+  if (!LefuConfig.isConfigured) {
+    yield true;
+    return;
+  }
+  final s = await ref.watch(appServicesProvider.future);
+  yield* s.db.watchStateValue(demoScaleKey).map((v) => v == 'true');
+});
+
+const demoScaleKey = 'demo_scale';
+
+bool _useDemoScale(Ref ref) =>
+    !LefuConfig.isConfigured ||
+    (ref.watch(demoScaleProvider).valueOrNull ?? false);
+
 final bodyScaleDriverProvider = Provider<ScaleDriver>((ref) {
-  final driver = SimulatedScaleDriver(kind: ScaleKind.body);
+  final ScaleDriver driver = _useDemoScale(ref)
+      ? SimulatedScaleDriver(kind: ScaleKind.body)
+      : LefuScaleDriver(
+          channel: PpBluetoothKitChannel(ScaleKind.body),
+          credentials: LefuConfig.credentials,
+          kind: ScaleKind.body,
+        );
   ref.onDispose(driver.dispose);
   return driver;
 });
 
 final kitchenScaleDriverProvider = Provider<ScaleDriver>((ref) {
-  final driver = SimulatedScaleDriver(kind: ScaleKind.kitchen);
+  final ScaleDriver driver = _useDemoScale(ref)
+      ? SimulatedScaleDriver(kind: ScaleKind.kitchen)
+      : LefuScaleDriver(
+          channel: PpBluetoothKitChannel(ScaleKind.kitchen),
+          credentials: LefuConfig.credentials,
+          kind: ScaleKind.kitchen,
+        );
   ref.onDispose(driver.dispose);
   return driver;
 });
 
-/// Connects both scales at startup. With the simulated driver that finds the
-/// demo device; the pairing flow for real hardware arrives with Phase 3.
+/// Where pairings live.
+final scalePairingStoreProvider =
+    FutureProvider<ScalePairingStore>((ref) async {
+  final s = await ref.watch(appServicesProvider.future);
+  return ScalePairingStore(s.db);
+});
+
+final pairedScaleProvider =
+    StreamProvider.family<PairedScale?, ScaleKind>((ref, kind) async* {
+  final store = await ref.watch(scalePairingStoreProvider.future);
+  yield* store.watch(kind);
+});
+
+/// Which scale the user is looking at. The Weigh food screen claims the
+/// kitchen scale while it is open; everything else wants the body scale.
+final scaleFocusProvider = StateProvider<ScaleKind>((ref) => ScaleKind.body);
+
+/// Owns the radio: connects the paired scale for the current focus and, on
+/// exclusive drivers, releases the other one. Kept alive by the shell.
+final scaleCoordinatorProvider =
+    FutureProvider<ScaleConnectionCoordinator>((ref) async {
+  final coordinator = ScaleConnectionCoordinator(
+    body: ref.watch(bodyScaleDriverProvider),
+    kitchen: ref.watch(kitchenScaleDriverProvider),
+    pairing: await ref.watch(scalePairingStoreProvider.future),
+  );
+  ref.listen<ScaleKind>(scaleFocusProvider, (_, kind) {
+    unawaited(coordinator.focusOn(kind));
+  });
+  return coordinator;
+});
+
+/// Connects both scales at startup: the simulated driver finds its demo
+/// device; the vendor driver connects whatever was paired.
 final scaleSessionProvider = FutureProvider<void>((ref) async {
-  for (final driver in [
-    ref.watch(bodyScaleDriverProvider),
-    ref.watch(kitchenScaleDriverProvider),
-  ]) {
-    unawaited(_autoConnect(driver));
+  final coordinator = await ref.watch(scaleCoordinatorProvider.future);
+  final demo = _useDemoScale(ref);
+  if (demo) {
+    // The demo scale has no pairing step: it is always there.
+    for (final driver in [coordinator.body, coordinator.kitchen]) {
+      unawaited(_autoConnect(driver));
+    }
+    return;
   }
+  unawaited(coordinator.start());
 });
 
 Future<void> _autoConnect(ScaleDriver driver) async {

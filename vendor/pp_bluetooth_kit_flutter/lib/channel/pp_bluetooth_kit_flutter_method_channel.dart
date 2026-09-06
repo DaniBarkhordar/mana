@@ -65,7 +65,8 @@ class MethodChannelPpBluetoothKitFlutter extends PPBluetoothKitFlutterPlatform {
   @override
   Future<void> initSDK(
       String appKey, String appSecret, String configContent) async {
-    PPBluetoothKitLogger.i('执行初始化-initSDK appKey:$appKey appSecret:$appSecret');
+    // Mananu: the secret is never logged (vendored change, docs/10-sdk.md).
+    PPBluetoothKitLogger.i('执行初始化-initSDK appKey:$appKey');
     await _bleChannel.invokeMethod('initSDK', <String, dynamic>{
       'appKey': appKey,
       'appSecret': appSecret,

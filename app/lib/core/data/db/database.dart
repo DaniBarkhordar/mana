@@ -168,6 +168,11 @@ class AppDatabase extends _$AppDatabase {
     return row?.value;
   }
 
+  Stream<String?> watchStateValue(String key) =>
+      (select(syncState)..where((s) => s.key.equals(key)))
+          .watchSingleOrNull()
+          .map((row) => row?.value);
+
   Future<void> setStateValue(String key, String value) =>
       into(syncState).insertOnConflictUpdate(
         SyncStateCompanion(key: Value(key), value: Value(value)),

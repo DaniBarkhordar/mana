@@ -30,11 +30,12 @@ dependencies:
   path: ^1.9.0
 
   # The vendor's own Flutter plugin for the Shenzhen Unique Scales (Lefu)
-  # hardware. Uncomment once the appKey, appSecret and lefu.config arrive.
-  # pp_bluetooth_kit_flutter:
-  #   git:
-  #     url: https://github.com/LefuHengqi/pp_bluetooth_kit_flutter.git
-  #     ref: 0.1.1
+  # hardware, vendored so the build is reproducible (docs/10-sdk.md). The
+  # driver only initialises it when LEFU_APP_KEY / LEFU_APP_SECRET are passed
+  # at build time and assets/lefu.config is present; otherwise the app runs on
+  # the simulated scale.
+  pp_bluetooth_kit_flutter:
+    path: ../vendor/pp_bluetooth_kit_flutter
 
   # Independent BLE path, so the app is not hostage to a vendor licence blob.
   flutter_blue_plus: ^1.32.7

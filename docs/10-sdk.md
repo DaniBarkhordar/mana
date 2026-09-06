@@ -99,5 +99,5 @@ Nothing in the Flutter bridge calls the network. The native Android demo does (`
 ## What this changes in the plan
 
 - **Phase 3 is no longer blocked.** A developer with a scale on the desk can integrate against the demo credentials today; production credentials come from self-service registration plus the model codes.
-- The `PpBluetoothKitChannel` stub in `lib/core/scale/lefu_driver.dart` maps one-to-one onto the API above.
+- `PpBluetoothKitChannel` in `lib/core/scale/lefu_driver.dart` is implemented over a process-wide `LefuSdkGateway` that owns the SDK's single-registration callbacks (one scan, one connection, one listener per kind). The vendored copy carries two marked one-line changes: the secret is not logged on init, and `pp_peripheral_dorre.dart` returns a non-null bool (it did not compile as shipped).
 - Ask Sophia for **model codes**, and separately ask her to have the factory confirm the impedance units and the `EnCode` decode. The exclusivity conversation is unchanged.

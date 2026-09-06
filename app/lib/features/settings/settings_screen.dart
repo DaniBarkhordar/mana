@@ -5,6 +5,7 @@ import '../../core/data/providers.dart';
 import '../../core/scale/scale_driver.dart';
 import '../../theme/instruments.dart';
 import '../../theme/tokens.dart';
+import 'scale_pairing_sheet.dart';
 
 /// Settings.
 ///
@@ -43,17 +44,23 @@ class SettingsScreen extends ConsumerWidget {
                 child: Column(
                   children: [
                     _DeviceTile(
+                      kind: ScaleKind.body,
                       title: 'Body scale',
                       state: body,
                       subtitle: 'Bare feet, hard floor, same time each morning',
                     ),
                     const Divider(height: 1),
                     _DeviceTile(
+                      kind: ScaleKind.kitchen,
                       title: 'Kitchen scale',
                       state: kitchen,
                       subtitle: 'Tare between ingredients, or let Mananu take '
                           'the difference',
                     ),
+                    if (LefuConfig.isConfigured) ...[
+                      const Divider(height: 1),
+                      const _DemoScaleTile(),
+                    ],
                   ],
                 ),
               ),
@@ -267,26 +274,58 @@ class _PhotoConsentTile extends ConsumerWidget {
   }
 }
 
-class _DeviceTile extends StatelessWidget {
+/// One scale: its pairing, its link, and the way in to change either.
+class _DeviceTile extends ConsumerWidget {
   const _DeviceTile({
+    required this.kind,
     required this.title,
     required this.state,
     required this.subtitle,
   });
 
+  final ScaleKind kind;
   final String title;
   final ScaleConnectionState? state;
   final String subtitle;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final demo = ref.watch(demoScaleProvider).valueOrNull ?? true;
+    final paired = ref.watch(pairedScaleProvider(kind)).valueOrNull;
     final connected = state == ScaleConnectionState.connected;
     final unauthorised = state == ScaleConnectionState.unauthorised;
+    final busy = state == ScaleConnectionState.scanning ||
+        state == ScaleConnectionState.connecting;
+
+    final String detail;
+    if (unauthorised) {
+      detail = 'Could not start the scale software. Weight still works; get '
+          'in touch and we will sort it.';
+    } else if (demo) {
+      detail = 'Demo scale — no hardware. $subtitle';
+    } else if (paired == null) {
+      detail = 'Not paired yet. Tap to choose your scale.';
+    } else {
+      detail = '${paired.name} · $subtitle';
+    }
+
+    final String status;
+    if (connected) {
+      status = 'Connected';
+    } else if (busy) {
+      status = 'Looking…';
+    } else if (!demo && paired == null) {
+      status = 'Pair';
+    } else {
+      status = 'Not connected';
+    }
+
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(
         horizontal: MananuSpacing.lg,
         vertical: MananuSpacing.sm,
       ),
+      onTap: demo ? null : () => _open(context, ref, paired != null),
       leading: Container(
         width: 9,
         height: 9,
@@ -301,17 +340,90 @@ class _DeviceTile extends StatelessWidget {
         ),
       ),
       title: Text(title, style: MananuType.bodyStrong),
-      subtitle: Text(
-        unauthorised
-            ? 'Could not start the scale software. Weight still works; get in '
-                'touch and we will sort it.'
-            : subtitle,
-        style: MananuType.caption,
-      ),
+      subtitle: Text(detail, style: MananuType.caption),
       trailing: Text(
-        connected ? 'Connected' : 'Not connected',
+        status,
+        style: MananuType.caption.copyWith(
+          color: !demo && paired == null ? MananuColors.brass : null,
+          fontWeight: !demo && paired == null ? FontWeight.w600 : null,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _open(BuildContext context, WidgetRef ref, bool paired) async {
+    if (!paired) {
+      await ScalePairingSheet.show(context, kind);
+      return;
+    }
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (_) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.bluetooth_searching),
+              title: const Text('Pair a different scale'),
+              onTap: () => Navigator.pop(context, 'pair'),
+            ),
+            ListTile(
+              leading: const Icon(
+                Icons.link_off,
+                color: MananuColors.danger,
+              ),
+              title: const Text(
+                'Forget this scale',
+                style: TextStyle(color: MananuColors.danger),
+              ),
+              onTap: () => Navigator.pop(context, 'forget'),
+            ),
+            const SizedBox(height: MananuSpacing.sm),
+          ],
+        ),
+      ),
+    );
+    if (!context.mounted) return;
+    if (choice == 'pair') {
+      await ScalePairingSheet.show(context, kind);
+    } else if (choice == 'forget') {
+      final coordinator = await ref.read(scaleCoordinatorProvider.future);
+      await coordinator.forget(kind);
+    }
+  }
+}
+
+/// The review account's route through the flow, and a tester's. Only shown
+/// on a build that carries real credentials; a build without them is already
+/// on the demo scale.
+class _DemoScaleTile extends ConsumerWidget {
+  const _DemoScaleTile();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final demo = ref.watch(demoScaleProvider).valueOrNull ?? false;
+    return SwitchListTile(
+      contentPadding: const EdgeInsets.symmetric(
+        horizontal: MananuSpacing.lg,
+        vertical: MananuSpacing.sm,
+      ),
+      secondary: Icon(
+        Icons.science_outlined,
+        color: Theme.of(context).colorScheme.onSurface,
+        size: 21,
+      ),
+      title: const Text('Demo scale', style: MananuType.bodyStrong),
+      subtitle: const Text(
+        'A simulated scale for trying the app without hardware. Readings '
+        'from it are labelled as simulated and never look like measurements.',
         style: MananuType.caption,
       ),
+      value: demo,
+      onChanged: (v) async {
+        final services = await ref.read(appServicesProvider.future);
+        await services.db.setStateValue(demoScaleKey, v ? 'true' : 'false');
+      },
     );
   }
 }

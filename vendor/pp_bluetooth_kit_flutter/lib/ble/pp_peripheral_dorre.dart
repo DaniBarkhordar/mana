@@ -146,8 +146,11 @@ class PPPeripheralDorre {
   /// 获取绑定状态
   /// 返回：true-已绑定，false-未绑定
   static Future<bool> fetchBindingState() async {
-    return PPBluetoothKitFlutterPlatform.instance
-        .fetchBindingState(_peripheralType);
+    // Mananu: the platform call is nullable; the vendor's source did not
+    // compile as shipped (vendored change, docs/10-sdk.md).
+    return await PPBluetoothKitFlutterPlatform.instance
+            .fetchBindingState(_peripheralType) ??
+        false;
   }
 
   /// 设置屏幕亮度

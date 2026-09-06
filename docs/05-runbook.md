@@ -76,18 +76,30 @@ select count(*) from body_measurements where user_id <> auth.uid();
 
 ## 4. Wiring the real scale
 
-Everything above the driver is finished and tested. When the factory sends the credentials:
+The vendor driver is written against the vendored plugin (`vendor/pp_bluetooth_kit_flutter`, a path dependency) and tested against a fake channel. What it needs from you is the licence:
 
-1. Uncomment `pp_bluetooth_kit_flutter` in `pubspec.yaml`.
-2. Drop `lefu.config` into `assets/`.
-3. Implement `PpBluetoothKitChannel` against the plugin — the call shapes are documented in `lib/core/scale/lefu_driver.dart`.
-4. Change two lines in `lib/core/data/providers.dart` to return `LefuScaleDriver` instead of `SimulatedScaleDriver`.
+1. Register on the Lefu Open Platform, add your device models, and download the config (docs/10-sdk.md). Save it as `app/assets/lefu.config` — it is git-ignored, never commit it.
+2. Build with the credentials:
 
-That is roughly a day. Nothing else in the app moves, which is the entire reason the abstraction is there.
+   ```bash
+   flutter run --dart-define=LEFU_APP_KEY=... --dart-define=LEFU_APP_SECRET=...
+   ```
 
-**Keep `SimulatedScaleDriver` in the release build behind a review account.** App Review cannot test a Bluetooth scale they do not have, and not giving them a route through the flow is the most common cause of rejection loops for hardware companion apps.
+   Without both defines and the file, the app runs on the simulated scale and Settings says "Demo scale".
+3. In the app: Settings → Your scales → Body scale → choose the unit from the list (wake it first). Same for the kitchen scale. Pairing is per phone, on purpose: on iOS the identifier is a per-install Bluetooth UUID.
 
-If the credentials are slow to arrive, `lib/core/scale/frames.dart` already parses the Lefu FFB0/AC02 protocol, Qingniu, Xiaomi MIBFS and the Bluetooth SIG standard service from published reverse-engineering — enough to read weight over `flutter_blue_plus` without any vendor licence at all. Impedance still needs their frame map (question 6 in `01-factory.md`).
+How it behaves, and what to check on the desk the first time:
+
+- **One connection at a time.** The vendor SDK holds a single link. The body scale is connected by default; opening Weigh food hands the radio to the kitchen scale and closing it hands it back (`ScaleConnectionCoordinator` in `core/scale/pairing.dart`). Broadcast-only families (Banana, Jambul, Hamburger, Grapes) do not connect at all.
+- **Units.** `PPBodyBaseModel.weight` is kg × 100 on a body scale and tenths of a gram on a kitchen scale, per the vendor's own demos. The raw integer and the device's accuracy class ride along in the measurement map — the first time a unit is on the desk, compare the readout with a known mass and, if it is off by ten, read `accuracy` in the map and adjust `LefuSdkGateway.measurementToMap`.
+- **Stability** is the SDK's `completed` state. One stored reading per measurement is the acceptance check; `MeasurementAggregator` is the belt-and-braces guard.
+- **Impedance** is the SDK's scalar `impedance`. The 200–1200 Ω plausibility gate in `BodyCompositionEngine` will refuse a wrong scale factor loudly. The `EnCode` segmental values are stored raw and never displayed (factory question 5).
+- **Android** needs the vendor's Maven repository, which the plugin's own `build.gradle` declares (`raw.githubusercontent.com/LefuHengqi/PPBaseKit-Android`). The first `flutter build apk` will fetch `com.lefu.*`.
+- **Demo scale** stays in every build: Settings → Your scales → Demo scale. That is App Review's route through the flow (CLAUDE.md rule 9), and readings from it are labelled `simulated_scale`.
+
+The vendored plugin carries two one-line Mananu changes, both marked in the source: the app secret is no longer written to the log on initialisation, and a nullable return in `pp_peripheral_dorre.dart` that did not compile as shipped.
+
+If the licence is slow to arrive, `lib/core/scale/frames.dart` already parses the Lefu FFB0/AC02 protocol, Qingniu, Xiaomi MIBFS and the Bluetooth SIG standard service from published reverse-engineering — enough to read weight over `flutter_blue_plus` without any vendor licence at all. Impedance still needs their frame map (question 6 in `01-factory.md`).
 
 ## 5. The food database
 

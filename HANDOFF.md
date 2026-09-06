@@ -13,7 +13,7 @@ Everything needed to finish the app is in this repo or in this document. Nothing
 
 | Built and tested | Not built |
 |---|---|
-| BIA engine — Sun 2003, Kyle 2001, Deurenberg 1991, Janssen 2000, Cunningham 1980, Mifflin-St Jeor, each with its published standard error and validity bounds | Real vendor driver (`PpBluetoothKitChannel` is a documented stub) |
+| BIA engine — Sun 2003, Kyle 2001, Deurenberg 1991, Janssen 2000, Cunningham 1980, Mifflin-St Jeor, each with its published standard error and validity bounds | A scale on the desk: the vendor driver is written and tested against a fake channel, not yet against hardware (runbook §4) |
 | Frame parsers for four BLE protocols, tested against captured ground-truth frames | The `core.sqlite` data file itself — the pipeline is built and tested; run it where gov.uk and usda.gov are reachable (Phase 2) |
 | Portion engine — running tare, yield factors, cooking-fat capture, personal calibration | |
 | **Offline food search, barcode lookup, "from the pack" foods — Phase 2, code done.** FTS5 catalogue with exact/prefix ranking, user foods first, Open Food Facts cached per user | |
@@ -133,28 +133,18 @@ The original plan follows.
 
 ## Phase 3 — The vendor driver
 
-**No longer blocked.** The vendor's SDK source is vendored under `vendor/` and documented from that source in `docs/10-sdk.md`. Two things changed on reading it: credentials are **self-service** on the Lefu Open Platform (register, add the device models, download `lefu.config`), and the vendor's demos ship working demo credentials that are fine for testing against a unit on the desk. You can start this phase the day a scale arrives. Production still needs the founder's own AppKey/AppSecret/config — never ship the demo keys.
+**Code done; hardware check outstanding.** `PpBluetoothKitChannel` is implemented over the vendored plugin (path dependency), with a process-wide `LefuSdkGateway` for the SDK's one-scan/one-connection/one-listener shape, a `ScaleConnectionCoordinator` that hands the single radio between the body and kitchen scales, a pairing sheet in Settings, and a Demo scale switch that keeps `SimulatedScaleDriver` in every build. Twelve driver tests run against a fake channel and against real `PPBodyBaseModel` / `PPDeviceModel` objects.
 
-What is needed, and who to ask — the full list with wording is in `docs/01-factory.md`, and the engineering questions go to `yanfabu-5@lefu.cc`, not to the sales contact:
+What is still needed, and who to ask — the full list with wording is in `docs/01-factory.md`, and the engineering questions go to `yanfabu-5@lefu.cc`, not to the sales contact:
 
-- `appKey`, `appSecret`, `lefu.config`
-- Which `PPDevicePeripheralType` family and protocol generation (2.x / 3.x / 4.x / Torre) the model is
-- The Android SDK artifacts — `com.lefu.*` is **not** on Maven Central or the Aliyun mirror, it is handed out through their open platform
+- `appKey`, `appSecret`, `lefu.config` — self-service on the Lefu Open Platform (docs/10-sdk.md); passed as `--dart-define`s and a git-ignored asset (runbook §4)
+- The model codes of the units you are buying, to add on the platform
 - The impedance encoding: the SDK emits a scalar `impedance` plus ten `z100Khz*EnCode` / `z20Khz*EnCode` segmental values. `EnCode` means encoded, not ohms. Without the decode, segmental analysis cannot ship
 - Written confirmation on whether `lefu.config` expires, whether `initSdk` touches the network, and which hostnames the SDK contacts
 
-**When they arrive:**
-
-1. Uncomment `pp_bluetooth_kit_flutter` in `pubspec.yaml`. Prefer a path dependency on `../vendor/pp_bluetooth_kit_flutter` so the build is reproducible; the git ref is the fallback.
-2. Put `lefu.config` in `assets/`, add it to the asset manifest, and **add it to `.gitignore`** — it is a licence artefact, not source.
-3. Implement `PpBluetoothKitChannel` in `core/scale/lefu_driver.dart`. The 51 method-channel calls are documented; you need `initSDK`, `startScan`, `stopScan`, `connectDevice`, `disconnect`, the measurement stream, `toZero`, `impedanceSwitchControl` and `fetchDeviceInfo`.
-4. Flip two lines in `core/data/providers.dart` to return `LefuScaleDriver`.
-
-`LefuScaleDriver.parseMeasurement` is already written and pure, so you can unit-test it against a captured payload dictionary before any hardware exists. Read `docs/10-sdk.md` first — it has the real method names, the `weight` unit trap (kg×100 for body, tenths of a gram for kitchen), and the `completed` state that is the stability signal.
+**Acceptance (needs a unit on the desk):** a real scale pairs from Settings, live weight streams to the readout, one stable reading is logged per measurement (not five), impedance reaches `BodyCompositionEngine`, and the kitchen scale takes over while Weigh food is open. Check the unit divisor against a known mass the first time (runbook §4).
 
 **Fallback if credentials are slow:** `core/scale/frames.dart` already parses the Lefu FFB0/AC02 protocol from published reverse-engineering. Over `flutter_blue_plus` you can read weight today with no vendor licence at all — service `0xFFB0`, notify `0xFFB2`, write `0xFFB1`, and `LefuFfb0Parser.handshake()` returns the five command frames in order. Impedance still needs their frame map.
-
-**Acceptance:** a real scale connects, live weight streams to the readout, one stable reading is logged per measurement (not five), and impedance reaches `BodyCompositionEngine`.
 
 ---
 

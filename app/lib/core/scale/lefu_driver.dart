@@ -1,17 +1,18 @@
 /// Driver for Shenzhen Unique Scales (Lefu) hardware via the vendor's official
-/// Flutter plugin, `pp_bluetooth_kit_flutter`.
+/// Flutter plugin, `pp_bluetooth_kit_flutter`, vendored at
+/// `vendor/pp_bluetooth_kit_flutter` and documented from its source in
+/// `docs/10-sdk.md`.
 ///
 /// WHY FLUTTER AND NOT REACT NATIVE
-/// The vendor maintains an official Flutter plugin (github.com/LefuHengqi/
-/// pp_bluetooth_kit_flutter) alongside their iOS and Android SDKs. There is no
-/// React Native binding. Choosing Flutter means the riskiest, most tedious part
-/// of this project — bridging a closed vendor SDK into a cross-platform app,
-/// twice, and maintaining it — is work the vendor already did and keeps doing.
+/// The vendor maintains an official Flutter plugin alongside their iOS and
+/// Android SDKs. There is no React Native binding. Choosing Flutter means the
+/// riskiest, most tedious part of this project — bridging a closed vendor SDK
+/// into a cross-platform app, twice, and maintaining it — is work the vendor
+/// already did and keeps doing.
 ///
 /// WHAT THE VENDOR SDK GIVES US
-///   * device discovery and connection across their 13 device families
+///   * device discovery and connection across their device families
 ///   * whole-body impedance AND five-segment impedance at 20 kHz and 100 kHz
-///   * on-device body-composition maths in `PPCalculateKit`
 ///   * the kitchen scale on the same SDK and the same credentials
 ///
 /// WHAT WE DELIBERATELY DO NOT USE
@@ -19,16 +20,42 @@
 ///     It takes age, sex, height, weight, heart rate and impedance, which is
 ///     Article 9 special-category health data, and sends it to a server in the
 ///     PRC. There is no adequacy decision, no SCCs and no processor agreement.
-///     A privacy notice does not fix that. All composition maths runs locally:
-///     either the vendor's on-device library or, preferably, our own published
-///     equations in core/bia, which we can explain, test and defend.
+///     All composition maths runs locally on our own published equations in
+///     core/bia, which we can explain, test and defend.
 ///   * the vendor's body-fat output as the displayed number, because we cannot
 ///     see the algorithm, cite it, or state its error.
 ///
 /// The impedance is what we want from them. The interpretation is ours.
+///
+/// SHAPE OF THE VENDOR API, AND WHAT IT FORCES
+/// The plugin is a set of static methods over one method channel: one scan
+/// callback, one connection at a time (`currentDevice` on the native side),
+/// one body-measurement listener and one kitchen listener. Registering a
+/// listener twice replaces the first. So there is one process-wide
+/// [LefuSdkGateway] that owns those registrations and fans out, and one
+/// [PpBluetoothKitChannel] per scale kind on top of it. Because only one scale
+/// can be connected at once, `ScaleConnectionCoordinator` (pairing.dart) hands
+/// the radio to whichever scale the user is looking at.
 library;
 
 import 'dart:async';
+
+import 'package:flutter/services.dart' show rootBundle;
+import 'package:pp_bluetooth_kit_flutter/ble/pp_bluetooth_kit_manager.dart';
+import 'package:pp_bluetooth_kit_flutter/ble/pp_peripheral_banana.dart';
+import 'package:pp_bluetooth_kit_flutter/ble/pp_peripheral_borre.dart';
+import 'package:pp_bluetooth_kit_flutter/ble/pp_peripheral_dorre.dart';
+import 'package:pp_bluetooth_kit_flutter/ble/pp_peripheral_egg.dart';
+import 'package:pp_bluetooth_kit_flutter/ble/pp_peripheral_fish.dart';
+import 'package:pp_bluetooth_kit_flutter/ble/pp_peripheral_forre.dart';
+import 'package:pp_bluetooth_kit_flutter/ble/pp_peripheral_grapes.dart';
+import 'package:pp_bluetooth_kit_flutter/ble/pp_peripheral_hamburger.dart';
+import 'package:pp_bluetooth_kit_flutter/ble/pp_peripheral_ice.dart';
+import 'package:pp_bluetooth_kit_flutter/ble/pp_peripheral_jambul.dart';
+import 'package:pp_bluetooth_kit_flutter/ble/pp_peripheral_torre.dart';
+import 'package:pp_bluetooth_kit_flutter/enums/pp_scale_enums.dart';
+import 'package:pp_bluetooth_kit_flutter/model/pp_body_base_model.dart';
+import 'package:pp_bluetooth_kit_flutter/model/pp_device_model.dart';
 
 import 'scale_driver.dart';
 
@@ -36,9 +63,8 @@ import 'scale_driver.dart';
 ///
 /// All three are required before the SDK will initialise, and `configAsset` is
 /// an opaque encrypted blob we cannot audit. That is a real supply-chain
-/// dependency: see docs/01-factory-questions.md question 3, which asks the
-/// factory in writing whether it expires and whether initialisation touches the
-/// network.
+/// dependency: see docs/01-factory.md question 3, which asks the factory in
+/// writing whether it expires and whether initialisation touches the network.
 class LefuCredentials {
   const LefuCredentials({
     required this.appKey,
@@ -63,19 +89,21 @@ class LefuCredentials {
 /// the transport: some connect over GATT, some only broadcast, and the kitchen
 /// scales use a different callback entirely.
 enum LefuDeviceFamily {
-  apple('PeripheralApple', ScaleKind.body, transport: LefuTransport.gatt),
-  coconut('Coconut', ScaleKind.body, transport: LefuTransport.gatt),
-  torre('Torre', ScaleKind.body, transport: LefuTransport.gatt),
-  ice('Ice', ScaleKind.body, transport: LefuTransport.gatt),
-  banana('Banana', ScaleKind.body, transport: LefuTransport.broadcast),
-  jambul('Jambul', ScaleKind.body, transport: LefuTransport.broadcast),
-  borre('Borre', ScaleKind.body, transport: LefuTransport.gatt),
-  forre('Forre', ScaleKind.body, transport: LefuTransport.gatt),
-  durian('Durian', ScaleKind.body, transport: LefuTransport.gatt),
-  fish('Fish', ScaleKind.kitchen, transport: LefuTransport.gatt),
-  egg('Egg', ScaleKind.kitchen, transport: LefuTransport.gatt),
-  hamburger('Hamburger', ScaleKind.kitchen, transport: LefuTransport.broadcast),
-  grapes('Grapes', ScaleKind.kitchen, transport: LefuTransport.broadcast);
+  apple('apple', ScaleKind.body, transport: LefuTransport.gatt),
+  coconut('coconut', ScaleKind.body, transport: LefuTransport.gatt),
+  torre('torre', ScaleKind.body, transport: LefuTransport.gatt),
+  ice('ice', ScaleKind.body, transport: LefuTransport.gatt),
+  banana('banana', ScaleKind.body, transport: LefuTransport.broadcast),
+  jambul('jambul', ScaleKind.body, transport: LefuTransport.broadcast),
+  borre('borre', ScaleKind.body, transport: LefuTransport.gatt),
+  dorre('dorre', ScaleKind.body, transport: LefuTransport.gatt),
+  forre('forre', ScaleKind.body, transport: LefuTransport.gatt),
+  durian('durian', ScaleKind.body, transport: LefuTransport.gatt),
+  kiwifruit('kiwifruit', ScaleKind.body, transport: LefuTransport.gatt),
+  fish('fish', ScaleKind.kitchen, transport: LefuTransport.gatt),
+  egg('egg', ScaleKind.kitchen, transport: LefuTransport.gatt),
+  hamburger('hamburger', ScaleKind.kitchen, transport: LefuTransport.broadcast),
+  grapes('grapes', ScaleKind.kitchen, transport: LefuTransport.broadcast);
 
   const LefuDeviceFamily(this.sdkName, this.kind, {required this.transport});
 
@@ -83,13 +111,23 @@ enum LefuDeviceFamily {
   final ScaleKind kind;
   final LefuTransport transport;
 
+  /// Accepts the enum name (`ice`) or the vendor's older prefixed spelling
+  /// (`PeripheralIce`), case-insensitively.
   static LefuDeviceFamily? fromSdkName(String? name) {
     if (name == null) return null;
+    var n = name.toLowerCase();
+    if (n.startsWith('peripheral')) n = n.substring('peripheral'.length);
     for (final f in LefuDeviceFamily.values) {
-      if (f.sdkName.toLowerCase() == name.toLowerCase()) return f;
+      if (f.sdkName == n) return f;
     }
     return null;
   }
+
+  static LefuDeviceFamily? fromPeripheralType(PPDevicePeripheralType? type) =>
+      type == null ? null : fromSdkName(type.name);
+
+  PPDevicePeripheralType get peripheralType =>
+      PPDevicePeripheralType.values.firstWhere((t) => t.name == sdkName);
 }
 
 enum LefuTransport {
@@ -105,7 +143,7 @@ enum LefuTransport {
 /// Field names mirror the SDK's own keys so the mapping is auditable. The
 /// `EnCode` suffix on the segmental values is the vendor's: those arrive
 /// encoded rather than as plain ohms, and the decode must be confirmed with the
-/// factory before segmental analysis ships — see docs/01-factory-questions.md
+/// factory before segmental analysis ships — see docs/01-factory.md
 /// question 5. Until then, segmental values are stored raw and not displayed.
 class LefuMeasurement {
   const LefuMeasurement({
@@ -126,7 +164,9 @@ class LefuMeasurement {
   final DateTime measuredAt;
 
   /// Whole-body impedance. The vendor's cloud API documents this field in ohms;
-  /// confirm the SDK's scalar matches before trusting it in an equation.
+  /// confirm the SDK's scalar matches before trusting it in an equation. The
+  /// plausibility gate in `BodyCompositionEngine` (200–1200 Ω) catches a wrong
+  /// scale factor loudly rather than silently.
   final double? impedance;
 
   final int? heartRate;
@@ -139,17 +179,28 @@ class LefuMeasurement {
       (z100Khz?.isComplete ?? false) && (z20Khz?.isComplete ?? false);
 }
 
-/// Thin abstraction over the vendor plugin's method channel.
+/// Thin abstraction over the vendor plugin.
 ///
-/// Kept as an interface so the app compiles and every screen can be built and
-/// tested before the credentials arrive from Shenzhen. Swap in
-/// [PpBluetoothKitChannel] once the appKey lands; nothing else changes.
+/// Kept as an interface so every screen can be built and tested without a
+/// licence or hardware: tests use a fake, the app uses
+/// [PpBluetoothKitChannel]. Everything crosses this boundary as plain maps so
+/// the mapping is auditable and testable on its own.
 abstract class LefuSdkChannel {
   Future<bool> initSdk(LefuCredentials credentials);
+
+  /// Devices of this channel's kind, as they are discovered. Scanning stops
+  /// when the last listener cancels.
   Stream<Map<String, dynamic>> startScan();
   Future<void> stopScan();
+
+  /// Completes once the SDK reports the link is up.
   Future<void> connectDevice(String deviceId);
   Future<void> disconnect();
+
+  /// `connected` / `disconnected` / `error`, as the SDK reports them — a scale
+  /// switching itself off after a reading arrives here.
+  Stream<String> connectionStates();
+
   Stream<Map<String, dynamic>> measurements();
   Future<void> toZero();
   Future<void> impedanceSwitchControl({required bool on});
@@ -174,16 +225,27 @@ class LefuScaleDriver implements ScaleDriver {
   final _aggregator = MeasurementAggregator();
 
   StreamSubscription<Map<String, dynamic>>? _measurementSub;
+  StreamSubscription<String>? _linkSub;
   bool _initialised = false;
+  bool _connected = false;
 
+  /// The SDK reports every frame while someone stands on the scale and then
+  /// `completed` once. Sample rate is a few hertz, so the UI animates.
   @override
   String get driverName => 'lefu/pp_bluetooth_kit';
+
+  /// One radio, one connection: the vendor SDK cannot hold the body scale and
+  /// the kitchen scale at the same time.
+  @override
+  bool get exclusive => true;
 
   @override
   Stream<ScaleConnectionState> get connectionState => _state.stream;
 
   @override
   Stream<WeightSample> get samples => _samples.stream;
+
+  bool get isConnected => _connected;
 
   @override
   Future<bool> initialise() async {
@@ -214,18 +276,41 @@ class LefuScaleDriver implements ScaleDriver {
           onTimeout: (sink) => sink.close(),
         );
 
-    await for (final raw in stream) {
-      final family = LefuDeviceFamily.fromSdkName(raw['deviceType'] as String?);
-      if (family != null && family.kind != kind) continue;
-      yield DiscoveredScale(
-        id: (raw['deviceMac'] ?? raw['deviceId'] ?? '').toString(),
-        name: (raw['deviceName'] ?? 'Scale').toString(),
-        kind: family?.kind ?? kind,
-        rssi: raw['rssi'] as int?,
-        protocolHint: family?.sdkName,
-        modelCode: raw['modelCode'] as String?,
-      );
+    try {
+      await for (final raw in stream) {
+        final scale = discoveredFromMap(raw, kind);
+        if (scale == null) continue;
+        yield scale;
+      }
+    } finally {
+      if (!_connected) _state.add(ScaleConnectionState.disconnected);
     }
+  }
+
+  /// Pure: turns the channel's device map into a [DiscoveredScale], or null
+  /// when the device is not of [kind].
+  static DiscoveredScale? discoveredFromMap(
+    Map<String, dynamic> raw,
+    ScaleKind kind,
+  ) {
+    final family = LefuDeviceFamily.fromSdkName(raw['deviceType'] as String?);
+    final declared = raw['kind'] as String?;
+    final deviceKind = declared == 'kitchen'
+        ? ScaleKind.kitchen
+        : declared == 'body'
+            ? ScaleKind.body
+            : family?.kind;
+    if (deviceKind != null && deviceKind != kind) return null;
+    final id = (raw['deviceMac'] ?? raw['deviceId'] ?? '').toString();
+    if (id.isEmpty) return null;
+    return DiscoveredScale(
+      id: id,
+      name: (raw['deviceName'] ?? 'Scale').toString(),
+      kind: deviceKind ?? kind,
+      rssi: (raw['rssi'] as num?)?.toInt(),
+      protocolHint: family?.sdkName,
+      modelCode: raw['modelCode'] as String?,
+    );
   }
 
   @override
@@ -234,7 +319,15 @@ class LefuScaleDriver implements ScaleDriver {
   @override
   Future<void> connect(DiscoveredScale scale) async {
     _state.add(ScaleConnectionState.connecting);
-    await _channel.connectDevice(scale.id);
+    await _linkSub?.cancel();
+    _linkSub = _channel.connectionStates().listen(_onLink);
+    try {
+      await _channel.connectDevice(scale.id);
+    } on Object {
+      _connected = false;
+      _state.add(ScaleConnectionState.disconnected);
+      rethrow;
+    }
 
     // Impedance is switchable per device and there is no guarantee of its
     // default, so it is turned on explicitly on every connect.
@@ -249,7 +342,25 @@ class LefuScaleDriver implements ScaleDriver {
     await _measurementSub?.cancel();
     _measurementSub = _channel.measurements().listen(_onMeasurement);
     _aggregator.reset();
+    _connected = true;
     _state.add(ScaleConnectionState.connected);
+  }
+
+  void _onLink(String state) {
+    if (state == 'connected') {
+      if (!_connected) {
+        _connected = true;
+        _state.add(ScaleConnectionState.connected);
+      }
+    } else {
+      // The scale powered down, went out of range, or the OS dropped the
+      // link. Either way the readout should say so; the coordinator decides
+      // whether to reconnect.
+      if (_connected) {
+        _connected = false;
+        _state.add(ScaleConnectionState.disconnected);
+      }
+    }
   }
 
   void _onMeasurement(Map<String, dynamic> raw) {
@@ -260,8 +371,6 @@ class LefuScaleDriver implements ScaleDriver {
     _samples.add(
       WeightSample(
         kg: m.weightKg,
-        // The vendor bridge does not expose a stability flag, so settling is
-        // detected by watching the value hold still. See MeasurementAggregator.
         isStable: _looksStable(m),
         at: m.measuredAt,
         impedanceOhm: m.impedance,
@@ -291,7 +400,7 @@ class LefuScaleDriver implements ScaleDriver {
     if (weight == null) return null;
 
     final ms = _num(raw['measureTime']);
-    final at = ms == null
+    final at = ms == null || ms <= 0
         ? DateTime.now()
         : DateTime.fromMillisecondsSinceEpoch(
             ms > 1e11 ? ms.toInt() : (ms * 1000).toInt(),
@@ -316,11 +425,13 @@ class LefuScaleDriver implements ScaleDriver {
       );
     }
 
+    final impedance = _num(raw['impedance']);
     return LefuMeasurement(
       weightKg: weight,
       measuredAt: at,
       isCompleted: raw['state'] == 'completed' || raw['isCompleted'] == true,
-      impedance: _num(raw['impedance']),
+      // Zero is the SDK's "not measured", not a reading.
+      impedance: impedance == null || impedance <= 0 ? null : impedance,
       heartRate: (raw['isHeartRating'] == true)
           ? _num(raw['heartRate'])?.toInt()
           : null,
@@ -340,8 +451,14 @@ class LefuScaleDriver implements ScaleDriver {
   Future<void> disconnect() async {
     await _measurementSub?.cancel();
     _measurementSub = null;
-    await _channel.disconnect();
-    _state.add(ScaleConnectionState.disconnected);
+    await _linkSub?.cancel();
+    _linkSub = null;
+    try {
+      await _channel.disconnect();
+    } finally {
+      _connected = false;
+      _state.add(ScaleConnectionState.disconnected);
+    }
   }
 
   @override
@@ -350,74 +467,401 @@ class LefuScaleDriver implements ScaleDriver {
   @override
   Future<void> dispose() async {
     await _measurementSub?.cancel();
+    await _linkSub?.cancel();
     await _state.close();
     await _samples.close();
   }
 }
 
-/// Real implementation against the vendor plugin.
+// ---------------------------------------------------------------------------
+// The real thing
+// ---------------------------------------------------------------------------
+
+/// A device as the gateway hands it out: the vendor model plus the family we
+/// resolved for it.
+class LefuDevice {
+  const LefuDevice(this.model, this.family);
+
+  final PPDeviceModel model;
+  final LefuDeviceFamily? family;
+
+  String get id => model.deviceMac ?? '';
+
+  /// The kind the SDK itself declares (CA = kitchen), falling back to the
+  /// family table when the device type is unknown.
+  ScaleKind? get kind {
+    switch (model.deviceType) {
+      case PPDeviceType.ca:
+        return ScaleKind.kitchen;
+      case PPDeviceType.cf:
+      case PPDeviceType.ce:
+        return ScaleKind.body;
+      case PPDeviceType.cb:
+      case PPDeviceType.unknown:
+      case null:
+        return family?.kind;
+    }
+  }
+}
+
+/// Process-wide owner of the vendor SDK's single-registration callbacks.
 ///
-/// The plugin source is vendored at `vendor/pp_bluetooth_kit_flutter`; the API
-/// is documented from that source in `docs/10-sdk.md`. Demo credentials for
-/// desk testing are in the vendored demos; production credentials are
-/// self-service on the Lefu Open Platform (see the same doc). This class is
-/// roughly a day's work with a unit on the desk.
-///
-/// Key facts from the vendor source that this class must respect:
-///   * `PPBodyBaseModel.weight` is an int: kg × 100 for body scales, tenths of
-///     a gram for kitchen scales (the vendor's own kitchen demo divides by 10).
-///     Check `device.deviceAccuracyType` before trusting a divisor.
-///   * `PPMeasurementDataState.completed` is the stability signal. Map it to
-///     `isCompleted` on the measurement map this channel emits.
-///   * Register ONE measurement listener; a second registration replaces it.
-///   * Kitchen tare is per family: `PPPeripheralFish.toZero()` / `PPPeripheralEgg.toZero()`.
-///
-/// Wiring, for whoever picks it up:
-///
-/// ```yaml
-/// # pubspec.yaml
-/// dependencies:
-///   pp_bluetooth_kit_flutter:
-///     git:
-///       url: https://github.com/LefuHengqi/pp_bluetooth_kit_flutter.git
-///       ref: 0.1.1
-/// ```
-///
-/// ```dart
-/// final config = await rootBundle.loadString('assets/lefu.config');
-/// await PPBluetoothKitManager.initSDK(appKey, appSecret, config);
-/// ```
-class PpBluetoothKitChannel implements LefuSdkChannel {
-  @override
-  Future<bool> initSdk(LefuCredentials credentials) {
-    throw UnimplementedError(
-      'Waiting on appKey, appSecret and lefu.config from Shenzhen Unique '
-      'Scales. Use SimulatedScaleDriver until then.',
+/// The plugin exposes one scan callback, one connection, one body-measurement
+/// listener and one kitchen listener; registering any of them twice replaces
+/// the first. This class registers each exactly once and fans out over
+/// broadcast streams, so the body and kitchen channels can both exist without
+/// stepping on each other.
+class LefuSdkGateway {
+  LefuSdkGateway._();
+
+  static final LefuSdkGateway instance = LefuSdkGateway._();
+
+  bool _initialised = false;
+  String? _configLoadedFrom;
+
+  final _devices = StreamController<LefuDevice>.broadcast();
+  final _link = StreamController<String>.broadcast();
+  final _body = StreamController<Map<String, dynamic>>.broadcast();
+  final _kitchen = StreamController<Map<String, dynamic>>.broadcast();
+  bool _bodyListenerRegistered = false;
+  bool _kitchenListenerRegistered = false;
+  int _scanListeners = 0;
+  bool _scanning = false;
+
+  /// Devices seen this session, so a connect-by-id has the vendor model the
+  /// SDK insists on.
+  final Map<String, LefuDevice> seen = {};
+
+  LefuDevice? connected;
+
+  Future<bool> initialise(LefuCredentials credentials) async {
+    if (_initialised && _configLoadedFrom == credentials.configAsset) {
+      return true;
+    }
+    if (credentials.appKey.isEmpty || credentials.appSecret.isEmpty) {
+      return false;
+    }
+    final String config;
+    try {
+      config = await rootBundle.loadString(credentials.configAsset);
+    } on Object {
+      // No licence file in the bundle: the build was made without one.
+      return false;
+    }
+    if (config.trim().isEmpty) return false;
+    try {
+      PPBluetoothKitManager.initSDK(
+        credentials.appKey,
+        credentials.appSecret,
+        config,
+      );
+    } on Object {
+      return false;
+    }
+    _initialised = true;
+    _configLoadedFrom = credentials.configAsset;
+    return true;
+  }
+
+  /// Discovered devices of every kind. Scanning runs while anyone listens.
+  Stream<LefuDevice> scan() {
+    late StreamController<LefuDevice> out;
+    StreamSubscription<LefuDevice>? sub;
+    out = StreamController<LefuDevice>(
+      onListen: () async {
+        sub = _devices.stream.listen(out.add);
+        _scanListeners += 1;
+        if (!_scanning) {
+          _scanning = true;
+          await PPBluetoothKitManager.startScan(_onDevice);
+        }
+      },
+      onCancel: () async {
+        await sub?.cancel();
+        _scanListeners -= 1;
+        if (_scanListeners <= 0) {
+          _scanListeners = 0;
+          await stopScan();
+        }
+      },
     );
+    return out.stream;
+  }
+
+  void _onDevice(PPDeviceModel model) {
+    final family = LefuDeviceFamily.fromPeripheralType(
+      model.getDevicePeripheralType(),
+    );
+    final device = LefuDevice(model, family);
+    if (device.id.isEmpty) return;
+    seen[device.id] = device;
+    _devices.add(device);
+  }
+
+  Future<void> stopScan() async {
+    if (!_scanning) return;
+    _scanning = false;
+    try {
+      await PPBluetoothKitManager.stopScan();
+    } on Object {
+      // Stopping a scan that already stopped is not an error worth surfacing.
+    }
+  }
+
+  Stream<String> get connectionStates => _link.stream;
+
+  /// Connects, or for broadcast-only families starts receiving their
+  /// advertisements. Completes when the SDK reports the link up.
+  Future<void> connect(LefuDevice device) async {
+    if (device.family?.transport == LefuTransport.broadcast) {
+      final ok = await _receiveBroadcast(device, on: true);
+      if (!ok) throw StateError('scale did not start broadcasting');
+      connected = device;
+      _link.add('connected');
+      return;
+    }
+
+    final done = Completer<void>();
+    PPBluetoothKitManager.connectDevice(
+      device.model,
+      callBack: (state) {
+        switch (state) {
+          case PPDeviceConnectionState.connected:
+            connected = device;
+            if (!done.isCompleted) done.complete();
+            _link.add('connected');
+          case PPDeviceConnectionState.disconnected:
+            if (connected?.id == device.id) connected = null;
+            if (!done.isCompleted) {
+              done.completeError(StateError('scale disconnected'));
+            }
+            _link.add('disconnected');
+          case PPDeviceConnectionState.error:
+          case PPDeviceConnectionState.undefine:
+            if (!done.isCompleted) {
+              done.completeError(StateError('scale connection failed'));
+            }
+            _link.add('error');
+        }
+      },
+    );
+    await done.future.timeout(const Duration(seconds: 20));
+  }
+
+  Future<bool> _receiveBroadcast(LefuDevice device, {required bool on}) async {
+    switch (device.family) {
+      case LefuDeviceFamily.banana:
+        return on
+            ? PPPeripheralBanana.receiveDeviceData(device.model)
+            : PPPeripheralBanana.unReceiveDeviceData(device.model);
+      case LefuDeviceFamily.jambul:
+        return on
+            ? PPPeripheralJambul.receiveDeviceData(device.model)
+            : PPPeripheralJambul.unReceiveDeviceData(device.model);
+      case LefuDeviceFamily.hamburger:
+        return on
+            ? PPPeripheralHamburger.receiveDeviceData(device.model)
+            : PPPeripheralHamburger.unReceiveDeviceData(device.model);
+      case LefuDeviceFamily.grapes:
+        return on
+            ? PPPeripheralGrapes.receiveDeviceData(device.model)
+            : PPPeripheralGrapes.unReceiveDeviceData(device.model);
+      default:
+        return false;
+    }
+  }
+
+  Future<void> disconnect() async {
+    final current = connected;
+    connected = null;
+    if (current?.family?.transport == LefuTransport.broadcast) {
+      await _receiveBroadcast(current!, on: false);
+    } else {
+      PPBluetoothKitManager.disconnect();
+    }
+    _link.add('disconnected');
+  }
+
+  Stream<Map<String, dynamic>> bodyMeasurements() {
+    if (!_bodyListenerRegistered) {
+      _bodyListenerRegistered = true;
+      PPBluetoothKitManager.addMeasurementListener(
+        callBack: (state, model, device) => _body.add(
+          measurementToMap(state, model, device, ScaleKind.body),
+        ),
+      );
+    }
+    return _body.stream;
+  }
+
+  Stream<Map<String, dynamic>> kitchenMeasurements() {
+    if (!_kitchenListenerRegistered) {
+      _kitchenListenerRegistered = true;
+      PPBluetoothKitManager.addKitchenMeasurementListener(
+        callBack: (state, model, device) => _kitchen.add(
+          measurementToMap(state, model, device, ScaleKind.kitchen),
+        ),
+      );
+    }
+    return _kitchen.stream;
+  }
+
+  Future<bool> tare() async {
+    switch (connected?.family) {
+      case LefuDeviceFamily.fish:
+        return PPPeripheralFish.toZero();
+      case LefuDeviceFamily.egg:
+        return PPPeripheralEgg.toZero();
+      default:
+        return false;
+    }
+  }
+
+  Future<bool> impedanceSwitch({required bool on}) async {
+    switch (connected?.family) {
+      case LefuDeviceFamily.ice:
+        return PPPeripheralIce.impedanceSwitchControl(on);
+      case LefuDeviceFamily.torre:
+        return PPPeripheralTorre.impedanceSwitchControl(on);
+      case LefuDeviceFamily.borre:
+        return PPPeripheralBorre.impedanceSwitchControl(on);
+      case LefuDeviceFamily.dorre:
+        return PPPeripheralDorre.impedanceSwitchControl(on);
+      case LefuDeviceFamily.forre:
+        return PPPeripheralForre.impedanceSwitchControl(on);
+      default:
+        // Other families measure impedance unconditionally.
+        return true;
+    }
+  }
+
+  /// Pure: the vendor's measurement callback as a plain map, weight in kg.
+  ///
+  /// `PPBodyBaseModel.weight` is an int whose unit depends on the device:
+  /// kg × 100 for a body scale (the model's own `getPpWeightKg`), tenths of a
+  /// gram for a kitchen scale (the vendor's own kitchen demo divides by 10).
+  /// The raw integer and the device's accuracy class travel with the map so a
+  /// unit on the desk can be checked against them (docs/10-sdk.md).
+  static Map<String, dynamic> measurementToMap(
+    PPMeasurementDataState state,
+    PPBodyBaseModel model,
+    PPDeviceModel device,
+    ScaleKind kind,
+  ) {
+    final sign = model.isPlus ? 1 : -1;
+    final kg = kind == ScaleKind.kitchen
+        ? sign * model.weight / 10.0 / 1000.0
+        : sign * model.getPpWeightKg();
+    return {
+      'kind': kind.name,
+      'weight': kg,
+      'rawWeight': model.weight,
+      'accuracy': device.deviceAccuracyType?.name,
+      'unit': model.unit?.name,
+      'measureTime': model.measureTime,
+      'state': state.name,
+      'isCompleted': state == PPMeasurementDataState.completed,
+      'impedance': model.impedance,
+      'impedance100EnCode': model.impedance100EnCode,
+      'heartRate': model.heartRate,
+      'isHeartRating': model.isHeartRating,
+      'isOverload': model.isOverload,
+      'z100KhzLeftArmEnCode': model.z100KhzLeftArmEnCode,
+      'z100KhzRightArmEnCode': model.z100KhzRightArmEnCode,
+      'z100KhzLeftLegEnCode': model.z100KhzLeftLegEnCode,
+      'z100KhzRightLegEnCode': model.z100KhzRightLegEnCode,
+      'z100KhzTrunkEnCode': model.z100KhzTrunkEnCode,
+      'z20KhzLeftArmEnCode': model.z20KhzLeftArmEnCode,
+      'z20KhzRightArmEnCode': model.z20KhzRightArmEnCode,
+      'z20KhzLeftLegEnCode': model.z20KhzLeftLegEnCode,
+      'z20KhzRightLegEnCode': model.z20KhzRightLegEnCode,
+      'z20KhzTrunkEnCode': model.z20KhzTrunkEnCode,
+      'deviceMac': device.deviceMac,
+    };
+  }
+
+  /// Pure: a discovered device as a plain map for the channel boundary.
+  static Map<String, dynamic> deviceToMap(LefuDevice device) => {
+        'deviceMac': device.model.deviceMac,
+        'deviceName': device.model.customDeviceName?.isNotEmpty == true
+            ? device.model.customDeviceName
+            : device.model.deviceName,
+        'rssi': device.model.rssi,
+        'deviceType': device.family?.sdkName,
+        'kind': device.kind?.name,
+        'modelCode': device.model.productModel,
+        'firmware': device.model.firmwareVersion,
+        'calculateType': device.model.deviceCalculateType?.name,
+        'accuracy': device.model.deviceAccuracyType?.name,
+        'protocol': device.model.deviceProtocolType?.name,
+        'power': device.model.devicePower,
+      };
+}
+
+/// Real implementation against the vendor plugin, one per scale kind.
+///
+/// Key facts from the vendor source that this class respects:
+///   * `PPBodyBaseModel.weight` is an int: kg × 100 for body scales, tenths of
+///     a gram for kitchen scales. Converted in [LefuSdkGateway.measurementToMap].
+///   * `PPMeasurementDataState.completed` is the stability signal, mapped to
+///     `isCompleted`.
+///   * ONE measurement listener per kind; the gateway registers it once.
+///   * Kitchen tare is per family: `PPPeripheralFish.toZero()` /
+///     `PPPeripheralEgg.toZero()`.
+///   * One connection at a time on the native side.
+class PpBluetoothKitChannel implements LefuSdkChannel {
+  PpBluetoothKitChannel(this.kind, {LefuSdkGateway? gateway})
+      : _gateway = gateway ?? LefuSdkGateway.instance;
+
+  final ScaleKind kind;
+  final LefuSdkGateway _gateway;
+
+  @override
+  Future<bool> initSdk(LefuCredentials credentials) =>
+      _gateway.initialise(credentials);
+
+  @override
+  Stream<Map<String, dynamic>> startScan() => _gateway
+      .scan()
+      .where((d) => d.kind == null || d.kind == kind)
+      .map(LefuSdkGateway.deviceToMap);
+
+  @override
+  Future<void> stopScan() => _gateway.stopScan();
+
+  @override
+  Future<void> connectDevice(String deviceId) async {
+    final device = _gateway.seen[deviceId];
+    if (device == null) {
+      throw StateError('scale $deviceId has not been seen in this scan');
+    }
+    if (_gateway.connected != null && _gateway.connected!.id != deviceId) {
+      await _gateway.disconnect();
+    }
+    await _gateway.connect(device);
   }
 
   @override
-  Stream<Map<String, dynamic>> startScan() => throw UnimplementedError();
+  Future<void> disconnect() => _gateway.disconnect();
 
   @override
-  Future<void> stopScan() => throw UnimplementedError();
+  Stream<String> connectionStates() => _gateway.connectionStates;
 
   @override
-  Future<void> connectDevice(String deviceId) => throw UnimplementedError();
+  Stream<Map<String, dynamic>> measurements() => kind == ScaleKind.kitchen
+      ? _gateway.kitchenMeasurements()
+      : _gateway.bodyMeasurements();
 
   @override
-  Future<void> disconnect() => throw UnimplementedError();
-
-  @override
-  Stream<Map<String, dynamic>> measurements() => throw UnimplementedError();
-
-  @override
-  Future<void> toZero() => throw UnimplementedError();
+  Future<void> toZero() => _gateway.tare();
 
   @override
   Future<void> impedanceSwitchControl({required bool on}) =>
-      throw UnimplementedError();
+      _gateway.impedanceSwitch(on: on);
 
   @override
-  Future<Map<String, dynamic>> fetchDeviceInfo() => throw UnimplementedError();
+  Future<Map<String, dynamic>> fetchDeviceInfo() async {
+    final current = _gateway.connected;
+    return current == null ? const {} : LefuSdkGateway.deviceToMap(current);
+  }
 }

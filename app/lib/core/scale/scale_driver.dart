@@ -123,6 +123,11 @@ abstract class ScaleDriver {
   /// Human-readable name for logs and the support inbox.
   String get driverName;
 
+  /// True when this driver cannot be connected alongside another exclusive
+  /// driver — the vendor SDK holds one link, so the body and kitchen scales
+  /// take turns. The coordinator in pairing.dart arranges the turns.
+  bool get exclusive;
+
   Stream<ScaleConnectionState> get connectionState;
 
   /// Live samples. Multiple listeners are expected (a UI and a logger), so
@@ -261,6 +266,9 @@ class SimulatedScaleDriver implements ScaleDriver {
 
   @override
   String get driverName => 'simulated';
+
+  @override
+  bool get exclusive => false;
 
   @override
   Stream<ScaleConnectionState> get connectionState => _state.stream;
