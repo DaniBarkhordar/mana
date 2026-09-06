@@ -7,6 +7,7 @@ import 'features/food/weigh_food_screen.dart';
 import 'features/home/today_screen.dart';
 import 'features/onboarding/onboarding_screen.dart';
 import 'features/settings/settings_screen.dart';
+import 'theme/instruments.dart';
 import 'theme/tokens.dart';
 
 class MananuApp extends StatelessWidget {
@@ -56,8 +57,6 @@ class MananuShell extends ConsumerStatefulWidget {
 }
 
 class _MananuShellState extends ConsumerState<MananuShell> {
-  int _index = 0;
-
   static const _tabs = <Widget>[
     TodayScreen(),
     BodyScreen(),
@@ -70,9 +69,10 @@ class _MananuShellState extends ConsumerState<MananuShell> {
     // listener that stores each settled body reading.
     ref.watch(scaleSessionProvider);
     ref.watch(bodyReadingRecorderProvider);
+    final index = ref.watch(shellIndexProvider);
 
     return Scaffold(
-      body: IndexedStack(index: _index, children: _tabs),
+      body: IndexedStack(index: index, children: _tabs),
 
       // One primary action, always in reach: put something on the scale.
       // The camera lives inside that flow rather than competing with it,
@@ -88,8 +88,9 @@ class _MananuShellState extends ConsumerState<MananuShell> {
       ),
 
       bottomNavigationBar: NavigationBar(
-        selectedIndex: _index,
-        onDestinationSelected: (i) => setState(() => _index = i),
+        selectedIndex: index,
+        onDestinationSelected: (i) =>
+            ref.read(shellIndexProvider.notifier).state = i,
         destinations: const [
           NavigationDestination(
             icon: Icon(Icons.today_outlined),
@@ -119,26 +120,7 @@ class _Splash extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ink = Theme.of(context).colorScheme.onSurface;
-    return Scaffold(
-      body: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            for (final colour in [ink, MananuColors.brass, ink])
-              Container(
-                width: 42,
-                height: 9,
-                margin: const EdgeInsets.symmetric(vertical: 3.25),
-                decoration: BoxDecoration(
-                  color: colour,
-                  borderRadius: BorderRadius.circular(4.5),
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
+    return const Scaffold(body: Center(child: MananuMark(height: 40)));
   }
 }
 

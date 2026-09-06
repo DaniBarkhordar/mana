@@ -11,6 +11,12 @@ import 'package:mananu/core/scale/scale_driver.dart';
 /// Boots the whole app on an in-memory database with no backend configured —
 /// exactly the aeroplane-mode case — and walks the main flow: onboarding,
 /// a logged meal on Today, a body reading on Body.
+/// A tab by its label, as opposed to a screen header with the same word.
+Finder _tab(String label) => find.descendant(
+      of: find.byType(NavigationBar),
+      matching: find.text(label),
+    );
+
 void main() {
   late AppServices services;
 
@@ -148,7 +154,7 @@ void main() {
     // Let the simulated scales connect.
     await tester.pump(const Duration(seconds: 1));
 
-    await tester.tap(find.text('Body'));
+    await tester.tap(_tab('Body'));
     await tester.pump(const Duration(milliseconds: 300));
     expect(find.text('No readings yet'), findsOneWidget);
 
@@ -195,7 +201,7 @@ void main() {
     );
     await settle(tester);
     await tester.pump(const Duration(seconds: 1));
-    await tester.tap(find.text('Body'));
+    await tester.tap(_tab('Body'));
     await tester.pump(const Duration(milliseconds: 300));
     await tester.tap(find.text('Simulate stepping on'));
     await tester.pump(const Duration(seconds: 2));
@@ -213,7 +219,7 @@ void main() {
       (tester) async {
     await pumpApp(tester);
     await completeOnboarding(tester);
-    await tester.tap(find.text('Settings'));
+    await tester.tap(_tab('Settings'));
     await tester.pump(const Duration(milliseconds: 300));
     expect(
       find.text('Saved on this phone. This build has no cloud backup.'),

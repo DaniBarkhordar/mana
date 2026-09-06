@@ -267,11 +267,16 @@ class ProvenanceBadge extends StatelessWidget {
             color: isDark ? fg.withValues(alpha: 0.95) : fg,
           ),
           const SizedBox(width: 4),
-          Text(
-            label ?? (weighed ? 'Weighed' : 'Estimated'),
-            style: MananuType.label.copyWith(
-              color: isDark ? fg.withValues(alpha: 0.95) : fg,
-              fontSize: dense ? 10 : 11,
+          // Shrinks rather than overflowing in a narrow column.
+          Flexible(
+            child: Text(
+              label ?? (weighed ? 'Weighed' : 'Estimated'),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: MananuType.label.copyWith(
+                color: isDark ? fg.withValues(alpha: 0.95) : fg,
+                fontSize: dense ? 10 : 11,
+              ),
             ),
           ),
         ],

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/data/providers.dart';
 import '../../core/scale/scale_driver.dart';
+import '../../theme/instruments.dart';
 import '../../theme/tokens.dart';
 
 /// Settings.
@@ -21,112 +22,122 @@ class SettingsScreen extends ConsumerWidget {
     final kitchen = ref.watch(kitchenConnectionProvider).valueOrNull;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Settings')),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(
-          MananuSpacing.lg,
-          MananuSpacing.sm,
-          MananuSpacing.lg,
-          120,
-        ),
-        children: [
-          MananuSection(
-            title: 'Your scales',
-            child: Card(
-              child: Column(
-                children: [
-                  _DeviceTile(
-                    title: 'Body scale',
-                    state: body,
-                    subtitle: 'Bare feet, hard floor, same time each morning',
-                  ),
-                  const Divider(height: 1),
-                  _DeviceTile(
-                    title: 'Kitchen scale',
-                    state: kitchen,
-                    subtitle: 'Tare between ingredients, or let Mananu take '
-                        'the difference',
-                  ),
-                ],
-              ),
-            ),
+      body: SafeArea(
+        bottom: false,
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(
+            MananuSpacing.lg,
+            0,
+            MananuSpacing.lg,
+            120,
           ),
-          const SizedBox(height: MananuSpacing.xl),
-          MananuSection(
-            title: 'Your data',
-            child: Card(
-              child: Column(
-                children: [
-                  const _BackupTile(),
-                  const Divider(height: 1),
-                  const _NavTile(
-                    icon: Icons.verified_user_outlined,
-                    title: 'Body composition consent',
-                    subtitle: 'Withdraw at any time. Weight and food logging '
-                        'keep working without it.',
-                  ),
-                  const Divider(height: 1),
-                  const _PhotoConsentTile(),
-                  const Divider(height: 1),
-                  const _NavTile(
-                    icon: Icons.download_outlined,
-                    title: 'Export everything',
-                    subtitle: 'Every measurement and meal, as CSV',
-                  ),
-                  const Divider(height: 1),
-                  _NavTile(
-                    icon: Icons.delete_forever_outlined,
-                    title: 'Delete my account',
-                    subtitle: 'Erased, not hidden. This cannot be undone.',
-                    danger: true,
-                    onTap: () => _confirmDelete(context),
-                  ),
-                ],
-              ),
+          children: [
+            const Padding(
+              padding: EdgeInsets.only(left: 0),
+              child: MananuHeader(title: 'Settings', label: 'mananu'),
             ),
-          ),
-          const SizedBox(height: MananuSpacing.xl),
-          MananuSection(
-            title: 'About',
-            child: Card(
-              child: Padding(
-                padding: const EdgeInsets.all(MananuSpacing.lg),
+            const SizedBox(height: MananuSpacing.sm),
+            MananuSection(
+              title: 'Your scales',
+              child: Card(
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'Mananu is not a medical device. It does not diagnose, '
-                      'treat, cure or prevent any disease. Do not use the body '
-                      'scale if you have a pacemaker or another implanted '
-                      'electronic device.',
-                      style: MananuType.caption.copyWith(
-                        color: MananuColors.warning,
-                      ),
+                    _DeviceTile(
+                      title: 'Body scale',
+                      state: body,
+                      subtitle: 'Bare feet, hard floor, same time each morning',
                     ),
-                    const SizedBox(height: MananuSpacing.md),
-                    Text(
-                      // The shipped catalogue carries its own attribution
-                      // string, written by the build that made it.
-                      ref.watch(foodCatalogProvider).valueOrNull?.attribution ??
-                          "Nutrition data: McCance and Widdowson's The "
-                              'Composition of Foods Integrated Dataset, used '
-                              'under the Open Government Licence v3.0; USDA '
-                              'FoodData Central, public domain; barcode data '
-                              'from Open Food Facts under the Open Database '
-                              'Licence.',
-                      style: MananuType.caption.copyWith(
-                        color: Theme.of(context)
-                            .colorScheme
-                            .onSurface
-                            .withValues(alpha: 0.5),
-                      ),
+                    const Divider(height: 1),
+                    _DeviceTile(
+                      title: 'Kitchen scale',
+                      state: kitchen,
+                      subtitle: 'Tare between ingredients, or let Mananu take '
+                          'the difference',
                     ),
                   ],
                 ),
               ),
             ),
-          ),
-        ],
+            const SizedBox(height: MananuSpacing.xl),
+            MananuSection(
+              title: 'Your data',
+              child: Card(
+                child: Column(
+                  children: [
+                    const _BackupTile(),
+                    const Divider(height: 1),
+                    const _NavTile(
+                      icon: Icons.verified_user_outlined,
+                      title: 'Body composition consent',
+                      subtitle: 'Withdraw at any time. Weight and food logging '
+                          'keep working without it.',
+                    ),
+                    const Divider(height: 1),
+                    const _PhotoConsentTile(),
+                    const Divider(height: 1),
+                    const _NavTile(
+                      icon: Icons.download_outlined,
+                      title: 'Export everything',
+                      subtitle: 'Every measurement and meal, as CSV',
+                    ),
+                    const Divider(height: 1),
+                    _NavTile(
+                      icon: Icons.delete_forever_outlined,
+                      title: 'Delete my account',
+                      subtitle: 'Erased, not hidden. This cannot be undone.',
+                      danger: true,
+                      onTap: () => _confirmDelete(context),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: MananuSpacing.xl),
+            MananuSection(
+              title: 'About',
+              child: Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(MananuSpacing.lg),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Mananu is not a medical device. It does not diagnose, '
+                        'treat, cure or prevent any disease. Do not use the body '
+                        'scale if you have a pacemaker or another implanted '
+                        'electronic device.',
+                        style: MananuType.caption.copyWith(
+                          color: MananuColors.warning,
+                        ),
+                      ),
+                      const SizedBox(height: MananuSpacing.md),
+                      Text(
+                        // The shipped catalogue carries its own attribution
+                        // string, written by the build that made it.
+                        ref
+                                .watch(foodCatalogProvider)
+                                .valueOrNull
+                                ?.attribution ??
+                            "Nutrition data: McCance and Widdowson's The "
+                                'Composition of Foods Integrated Dataset, used '
+                                'under the Open Government Licence v3.0; USDA '
+                                'FoodData Central, public domain; barcode data '
+                                'from Open Food Facts under the Open Database '
+                                'Licence.',
+                        style: MananuType.caption.copyWith(
+                          color: Theme.of(context)
+                              .colorScheme
+                              .onSurface
+                              .withValues(alpha: 0.5),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

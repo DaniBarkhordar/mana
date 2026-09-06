@@ -305,8 +305,23 @@ class _ScaleReadout extends StatelessWidget {
             ),
             child: Text(grams.toStringAsFixed(grams >= 1000 ? 0 : 1)),
           ),
+          const SizedBox(height: MananuSpacing.sm),
+          // Settles with the reading: brass when the scale has locked, quiet
+          // while it is still moving.
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 220),
+            width: isStable ? 72 : 28,
+            height: 3,
+            decoration: BoxDecoration(
+              color: isStable
+                  ? MananuColors.brass
+                  : scheme.onSurface.withValues(alpha: 0.2),
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(height: MananuSpacing.sm),
           Text(
-            'grams',
+            isStable ? 'grams · settled' : 'grams',
             style: MananuType.label.copyWith(
               color: scheme.onSurface.withValues(alpha: 0.5),
             ),

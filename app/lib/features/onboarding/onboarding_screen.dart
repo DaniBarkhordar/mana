@@ -23,6 +23,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/bia/equations.dart';
 import '../../core/data/providers.dart';
+import '../../theme/instruments.dart';
 import '../../theme/tokens.dart';
 
 class OnboardingScreen extends ConsumerStatefulWidget {
@@ -180,6 +181,8 @@ class _WelcomePage extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
+              const MananuMark(height: 28),
+              const SizedBox(height: MananuSpacing.xl),
               const Text(
                 'Weigh it.\nDon\'t guess it.',
                 style: MananuType.display,

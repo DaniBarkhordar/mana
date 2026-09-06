@@ -218,6 +218,10 @@ final photoCaptureProvider = Provider<Future<Uint8List?> Function()>((ref) {
   };
 });
 
+/// Which tab the shell shows. A provider so a card on one tab can open
+/// another (Today's body card opens Body).
+final shellIndexProvider = StateProvider<int>((ref) => 0);
+
 // ---------------------------------------------------------------------------
 // Profile
 // ---------------------------------------------------------------------------

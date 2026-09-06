@@ -8,9 +8,11 @@ library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 
 import '../../core/data/providers.dart';
 import '../../core/nutrition/portion.dart';
+import '../../theme/instruments.dart';
 import '../../theme/tokens.dart';
 
 class TodayScreen extends ConsumerWidget {
@@ -23,62 +25,67 @@ class TodayScreen extends ConsumerWidget {
     final meals = ref.watch(todaysMealsProvider).valueOrNull ?? const [];
     final trend = ref.watch(bodyFatTrendProvider);
     final latest = ref.watch(latestBodyMeasurementProvider);
+    final weights = ref.watch(weightSeriesProvider);
+    final today = ref.watch(todayProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Today')),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(
-          MananuSpacing.lg,
-          MananuSpacing.sm,
-          MananuSpacing.lg,
-          120,
-        ),
-        children: [
-          _EnergyCard(totals: totals, target: target),
-          const SizedBox(height: MananuSpacing.lg),
-          _MacroCard(totals: totals, target: target),
-          const SizedBox(height: MananuSpacing.xl),
-          MananuSection(
-            title: 'Meals',
-            child: meals.isEmpty
-                ? const _NoMealsCard()
-                : Card(
-                    child: Column(
-                      children: [
-                        for (var i = 0; i < meals.length; i++) ...[
-                          if (i > 0) const Divider(height: 1),
-                          _MealRow(
-                            meal: meals[i],
-                            onDelete: () => _delete(ref, meals[i]),
+      body: SafeArea(
+        bottom: false,
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(0, 0, 0, 120),
+          children: [
+            MananuHeader(
+              title: 'Today',
+              label: DateFormat('EEEE d MMMM').format(today),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: MananuSpacing.lg),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const SizedBox(height: MananuSpacing.sm),
+                  _EnergyHero(totals: totals, target: target),
+                  const SizedBox(height: MananuSpacing.xl),
+                  MananuSection(
+                    title: 'Meals',
+                    child: meals.isEmpty
+                        ? const _NoMealsCard()
+                        : Card(
+                            child: Column(
+                              children: [
+                                for (var i = 0; i < meals.length; i++) ...[
+                                  if (i > 0) const Divider(height: 1),
+                                  _MealRow(
+                                    meal: meals[i],
+                                    onDelete: () => _delete(ref, meals[i]),
+                                  ),
+                                ],
+                              ],
+                            ),
                           ),
+                  ),
+                  const SizedBox(height: MananuSpacing.xl),
+                  if (latest != null)
+                    MananuSection(
+                      title: 'Body',
+                      child: _BodyCard(
+                        weightKg: latest.weightKg,
+                        trend: trend,
+                        weights: [
+                          for (final p in weights.length > 14
+                              ? weights.sublist(weights.length - 14)
+                              : weights)
+                            p.value,
                         ],
-                      ],
+                        onTap: () =>
+                            ref.read(shellIndexProvider.notifier).state = 1,
+                      ),
                     ),
-                  ),
-          ),
-          const SizedBox(height: MananuSpacing.xl),
-          if (latest != null)
-            MananuSection(
-              title: 'Body',
-              child: Card(
-                child: ListTile(
-                  contentPadding: const EdgeInsets.all(MananuSpacing.lg),
-                  title: Text(
-                    '${latest.weightKg.toStringAsFixed(1)} kg',
-                    style: MananuType.title,
-                  ),
-                  subtitle: Text(
-                    trend == null
-                        ? 'Latest reading'
-                        : 'Body fat trending at '
-                            '${trend.toStringAsFixed(1)}%',
-                    style: MananuType.caption,
-                  ),
-                  trailing: const Icon(Icons.chevron_right),
-                ),
+                ],
               ),
             ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -90,8 +97,11 @@ class TodayScreen extends ConsumerWidget {
   }
 }
 
-class _EnergyCard extends StatelessWidget {
-  const _EnergyCard({required this.totals, required this.target});
+/// The day at a glance: the arc is energy against target, the pill is how much
+/// of it was weighed, the row underneath is the macros. One card, because they
+/// are one question — how is today going?
+class _EnergyHero extends StatelessWidget {
+  const _EnergyHero({required this.totals, required this.target});
 
   final MealTotals totals;
   final EnergyTarget? target;
@@ -99,148 +109,129 @@ class _EnergyCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final eaten = totals.kcal.round();
+    final eaten = totals.kcal;
     final goal = target?.kcal;
-    final remaining = goal == null ? null : goal - eaten;
-    final progress =
-        goal == null || goal == 0 ? 0.0 : (eaten / goal).clamp(0.0, 1.2);
+    final remaining = goal == null ? null : goal - eaten.round();
+    final progress = goal == null || goal == 0 ? 0.0 : eaten / goal;
+    final muted = scheme.onSurface.withValues(alpha: 0.55);
 
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(MananuSpacing.xl),
+        padding: const EdgeInsets.fromLTRB(
+          MananuSpacing.xl,
+          MananuSpacing.xl,
+          MananuSpacing.xl,
+          MananuSpacing.lg,
+        ),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Row(
-              crossAxisAlignment: CrossAxisAlignment.baseline,
-              textBaseline: TextBaseline.alphabetic,
               children: [
-                Text(
-                  '$eaten',
-                  style: MananuType.display.copyWith(color: scheme.onSurface),
-                ),
-                const SizedBox(width: MananuSpacing.xs),
-                Text(
-                  'kcal',
-                  style: MananuType.body.copyWith(
-                    color: scheme.onSurface.withValues(alpha: 0.6),
-                  ),
-                ),
-                const SizedBox(width: MananuSpacing.md),
-                if (remaining != null)
-                  Expanded(
-                    child: Text(
-                      remaining >= 0
-                          ? '$remaining left'
-                          : '${remaining.abs()} over',
-                      textAlign: TextAlign.end,
-                      overflow: TextOverflow.ellipsis,
-                      style: MananuType.bodyStrong.copyWith(
-                        color: remaining >= 0
-                            ? scheme.onSurface.withValues(alpha: 0.7)
-                            : MananuColors.warning,
+                ArcGauge(
+                  progress: progress,
+                  size: 132,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      AnimatedNumber(
+                        eaten,
+                        format: thousands,
+                        style: MananuType.display.copyWith(
+                          fontSize: 34,
+                          color: scheme.onSurface,
+                        ),
                       ),
-                    ),
+                      Text(
+                        'kcal',
+                        style: MananuType.caption.copyWith(color: muted),
+                      ),
+                    ],
                   ),
+                ),
+                const SizedBox(width: MananuSpacing.lg),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (remaining != null) ...[
+                        AnimatedNumber(
+                          remaining.abs().toDouble(),
+                          format: thousands,
+                          style: MananuType.display.copyWith(
+                            fontSize: 28,
+                            color: remaining >= 0
+                                ? scheme.onSurface
+                                : MananuColors.warning,
+                          ),
+                        ),
+                        Text(
+                          remaining >= 0
+                              ? 'left of ${thousands(goal!)}'
+                              : 'over ${thousands(goal!)}',
+                          style: MananuType.caption.copyWith(color: muted),
+                        ),
+                        const SizedBox(height: MananuSpacing.md),
+                      ],
+                      // The number no competitor shows. It is simultaneously
+                      // the honesty statement, the retention loop, and the
+                      // reason to keep the scale on the counter.
+                      ProvenanceBadge(
+                        weighed: totals.weighedFraction >= 0.6,
+                        label: '${(totals.weighedFraction * 100).round()}% '
+                            'weighed',
+                      ),
+                      const SizedBox(height: MananuSpacing.xs),
+                      Text(
+                        totals.componentCount == 0
+                            ? 'Weigh it. Don\'t guess it.'
+                            : totals.weighedFraction >= 0.9
+                                ? 'About as accurate as logging gets.'
+                                : totals.weighedFraction >= 0.5
+                                    ? 'Weighing the rest would tighten this.'
+                                    : 'Weighed beats estimated every time.',
+                        style: MananuType.caption.copyWith(color: muted),
+                      ),
+                    ],
+                  ),
+                ),
               ],
             ),
             const SizedBox(height: MananuSpacing.lg),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(999),
-              child: LinearProgressIndicator(
-                value: progress,
-                minHeight: 8,
-                backgroundColor: scheme.surfaceContainerHighest,
-                valueColor: AlwaysStoppedAnimation(
-                  progress > 1.0 ? MananuColors.warning : MananuColors.brass,
+            const Divider(),
+            const SizedBox(height: MananuSpacing.md),
+            Row(
+              children: [
+                _Macro(
+                  label: 'Protein',
+                  grams: totals.nutrients.proteinG,
+                  target: target?.proteinG,
+                  colour: MananuColors.protein,
                 ),
-              ),
+                _Macro(
+                  label: 'Carbs',
+                  grams: totals.nutrients.carbG,
+                  target: target?.carbG,
+                  colour: MananuColors.carbs,
+                ),
+                _Macro(
+                  label: 'Fat',
+                  grams: totals.nutrients.fatG,
+                  target: target?.fatG,
+                  colour: MananuColors.fat,
+                ),
+              ],
             ),
-            const SizedBox(height: MananuSpacing.lg),
-
-            // The number no competitor shows. It is simultaneously the honesty
-            // statement, the retention loop, and the reason to keep the scale on
-            // the counter.
-            _WeighedMeter(fraction: totals.weighedFraction),
-
             if (target != null) ...[
               const SizedBox(height: MananuSpacing.md),
               Text(
                 target!.basis,
                 style: MananuType.caption.copyWith(
-                  color: scheme.onSurface.withValues(alpha: 0.45),
+                  fontSize: 11,
+                  color: scheme.onSurface.withValues(alpha: 0.4),
                 ),
               ),
             ],
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _WeighedMeter extends StatelessWidget {
-  const _WeighedMeter({required this.fraction});
-
-  final double fraction;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final pct = (fraction * 100).round();
-    return Row(
-      children: [
-        ProvenanceBadge(weighed: fraction >= 0.6, label: '$pct% weighed'),
-        const SizedBox(width: MananuSpacing.md),
-        Expanded(
-          child: Text(
-            fraction >= 0.9
-                ? "Today's numbers are about as accurate as food logging gets."
-                : fraction >= 0.5
-                    ? 'Weighing the rest would tighten this up.'
-                    : 'Weighed portions are far more accurate than estimates.',
-            style: MananuType.caption.copyWith(
-              color: scheme.onSurface.withValues(alpha: 0.6),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _MacroCard extends StatelessWidget {
-  const _MacroCard({required this.totals, required this.target});
-
-  final MealTotals totals;
-  final EnergyTarget? target;
-
-  @override
-  Widget build(BuildContext context) {
-    final n = totals.nutrients;
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(MananuSpacing.lg),
-        child: Row(
-          children: [
-            _Macro(
-              label: 'Protein',
-              grams: n.proteinG,
-              target: target?.proteinG,
-              colour: MananuColors.protein,
-            ),
-            _Macro(
-              label: 'Carbs',
-              grams: n.carbG,
-              target: target?.carbG,
-              colour: MananuColors.carbs,
-            ),
-            _Macro(
-              label: 'Fat',
-              grams: n.fatG,
-              target: target?.fatG,
-              colour: MananuColors.fat,
-            ),
           ],
         ),
       ),
@@ -270,44 +261,53 @@ class _Macro extends StatelessWidget {
 
     return Expanded(
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: [
+              AnimatedNumber(
+                value,
+                style: MananuType.number.copyWith(
+                  fontSize: 17,
+                  color: scheme.onSurface,
+                ),
+              ),
+              Text(
+                ' g',
+                style: MananuType.caption.copyWith(
+                  color: scheme.onSurface.withValues(alpha: 0.5),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: MananuSpacing.xs),
+          Padding(
+            padding: const EdgeInsets.only(right: MananuSpacing.md),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(999),
+              child: TweenAnimationBuilder<double>(
+                tween: Tween(begin: 0, end: progress),
+                duration: const Duration(milliseconds: 600),
+                curve: Curves.easeOutCubic,
+                builder: (context, p, _) => LinearProgressIndicator(
+                  value: p,
+                  minHeight: 5,
+                  backgroundColor: scheme.surfaceContainerHighest,
+                  valueColor: AlwaysStoppedAnimation(colour),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: MananuSpacing.xs),
           Text(
-            label.toUpperCase(),
-            style: MananuType.label.copyWith(
+            target == null ? label : '$label · of $target g',
+            style: MananuType.caption.copyWith(
+              fontSize: 11,
               color: scheme.onSurface.withValues(alpha: 0.5),
             ),
           ),
-          const SizedBox(height: MananuSpacing.sm),
-          Text(
-            '${value.round()} g',
-            style: MananuType.number.copyWith(
-              fontSize: 17,
-              color: scheme.onSurface,
-            ),
-          ),
-          const SizedBox(height: MananuSpacing.sm),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: MananuSpacing.md),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(999),
-              child: LinearProgressIndicator(
-                value: progress,
-                minHeight: 5,
-                backgroundColor: scheme.surfaceContainerHighest,
-                valueColor: AlwaysStoppedAnimation(colour),
-              ),
-            ),
-          ),
-          if (target != null) ...[
-            const SizedBox(height: 4),
-            Text(
-              'of $target g',
-              style: MananuType.caption.copyWith(
-                fontSize: 11,
-                color: scheme.onSurface.withValues(alpha: 0.4),
-              ),
-            ),
-          ],
         ],
       ),
     );
@@ -325,6 +325,7 @@ class _MealRow extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final totals = meal.totals;
     final names = meal.components.map((c) => c.food.name).join(', ');
+    final muted = scheme.onSurface.withValues(alpha: 0.55);
 
     return Dismissible(
       key: ValueKey(meal.id),
@@ -336,51 +337,133 @@ class _MealRow extends StatelessWidget {
         color: MananuColors.danger.withValues(alpha: 0.12),
         child: const Icon(Icons.delete_outline, color: MananuColors.danger),
       ),
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
           horizontal: MananuSpacing.lg,
-          vertical: MananuSpacing.sm,
+          vertical: MananuSpacing.md,
         ),
-        title: Row(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(meal.slot.label, style: MananuType.bodyStrong),
-            if (!meal.isSynced) ...[
-              const SizedBox(width: 6),
-              // Quietly: the meal is safe on this phone, not yet backed up.
-              Tooltip(
-                message: 'Saved on this phone, not yet backed up',
-                child: Icon(
-                  Icons.cloud_off_outlined,
-                  size: 14,
-                  color: scheme.onSurface.withValues(alpha: 0.4),
+            // The time column reads like a timeline down the card.
+            SizedBox(
+              width: 44,
+              child: Text(
+                DateFormat('HH:mm').format(meal.eatenAt),
+                style: MananuType.number.copyWith(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                  color: muted,
                 ),
               ),
+            ),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Text(meal.slot.label, style: MananuType.bodyStrong),
+                      if (!meal.isSynced) ...[
+                        const SizedBox(width: 6),
+                        // Quietly: safe on this phone, not yet backed up.
+                        Tooltip(
+                          message: 'Saved on this phone, not yet backed up',
+                          child: Icon(
+                            Icons.cloud_off_outlined,
+                            size: 14,
+                            color: scheme.onSurface.withValues(alpha: 0.4),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    names,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: MananuType.caption.copyWith(color: muted),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: MananuSpacing.md),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text('${totals.kcal.round()} kcal', style: MananuType.number),
+                const SizedBox(height: 4),
+                ProvenanceBadge(
+                  weighed: totals.weighedFraction >= 0.6,
+                  label: totals.confidenceLabel,
+                  dense: true,
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _BodyCard extends StatelessWidget {
+  const _BodyCard({
+    required this.weightKg,
+    required this.trend,
+    required this.weights,
+    required this.onTap,
+  });
+
+  final double weightKg;
+  final double? trend;
+  final List<double> weights;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Card(
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: MananuSpacing.radiusMd,
+        child: Padding(
+          padding: const EdgeInsets.all(MananuSpacing.lg),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${weightKg.toStringAsFixed(1)} kg',
+                      style: MananuType.title.copyWith(
+                        fontFeatures: const [FontFeature.tabularFigures()],
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      trend == null
+                          ? 'Latest reading'
+                          : 'Body fat trending at ${trend!.toStringAsFixed(1)}%',
+                      style: MananuType.caption.copyWith(
+                        color: scheme.onSurface.withValues(alpha: 0.6),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (weights.length >= 2) ...[
+                Sparkline(values: weights),
+                const SizedBox(width: MananuSpacing.sm),
+              ],
+              Icon(
+                Icons.chevron_right,
+                color: scheme.onSurface.withValues(alpha: 0.4),
+              ),
             ],
-          ],
-        ),
-        subtitle: Padding(
-          padding: const EdgeInsets.only(top: 2),
-          child: Text(
-            names,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: MananuType.caption.copyWith(
-              color: scheme.onSurface.withValues(alpha: 0.6),
-            ),
           ),
-        ),
-        trailing: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            Text('${totals.kcal.round()} kcal', style: MananuType.number),
-            const SizedBox(height: 2),
-            ProvenanceBadge(
-              weighed: totals.weighedFraction >= 0.6,
-              label: totals.confidenceLabel,
-              dense: true,
-            ),
-          ],
         ),
       ),
     );
@@ -398,10 +481,15 @@ class _NoMealsCard extends StatelessWidget {
         padding: const EdgeInsets.all(MananuSpacing.xl),
         child: Column(
           children: [
+            MananuMark(
+              height: 22,
+              color: scheme.onSurface.withValues(alpha: 0.25),
+            ),
+            const SizedBox(height: MananuSpacing.lg),
             const Text('Nothing logged yet today', style: MananuType.heading),
             const SizedBox(height: MananuSpacing.sm),
             Text(
-              'Put your first ingredient on the scale and tap the button below.',
+              'Put your first ingredient on the scale and tap Weigh food.',
               textAlign: TextAlign.center,
               style: MananuType.body.copyWith(
                 color: scheme.onSurface.withValues(alpha: 0.6),

@@ -20,6 +20,7 @@ import 'package:intl/intl.dart';
 import '../../core/bia/body_composition.dart';
 import '../../core/data/providers.dart';
 import '../../core/scale/scale_driver.dart';
+import '../../theme/instruments.dart';
 import '../../theme/tokens.dart';
 
 class BodyScreen extends ConsumerWidget {
@@ -33,67 +34,76 @@ class BodyScreen extends ConsumerWidget {
     final series = ref.watch(weightSeriesProvider);
     final driver = ref.watch(bodyScaleDriverProvider);
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Body'),
-        actions: [
-          if (driver is SimulatedScaleDriver && latest != null)
-            IconButton(
-              onPressed: () => driver.simulateReading(),
-              icon: const Icon(Icons.monitor_weight_outlined),
-              tooltip: 'Simulate stepping on (demo)',
-            ),
-          IconButton(
-            onPressed: () => _showProtocol(context),
-            icon: const Icon(Icons.info_outline),
-            tooltip: 'How to get a comparable reading',
-          ),
-        ],
+    final actions = <Widget>[
+      if (driver is SimulatedScaleDriver && latest != null)
+        IconButton(
+          onPressed: () => driver.simulateReading(),
+          icon: const Icon(Icons.monitor_weight_outlined),
+          tooltip: 'Simulate stepping on (demo)',
+        ),
+      IconButton(
+        onPressed: () => _showProtocol(context),
+        icon: const Icon(Icons.info_outline),
+        tooltip: 'How to get a comparable reading',
       ),
-      body: latest == null
-          ? _NoReadingsYet(driver: driver)
-          : ListView(
-              padding: const EdgeInsets.fromLTRB(
-                MananuSpacing.lg,
-                MananuSpacing.sm,
-                MananuSpacing.lg,
-                120,
-              ),
-              children: [
-                _TrendHeadline(
-                  medianBodyFat: trend,
-                  latest: latest,
-                  weeklyRateKg: rate,
-                ),
-                const SizedBox(height: MananuSpacing.xl),
-                if (_WeightChartCard.hasEnough(series)) ...[
-                  _WeightChartCard(series: series),
-                  const SizedBox(height: MananuSpacing.xl),
+    ];
+
+    return Scaffold(
+      body: SafeArea(
+        bottom: false,
+        child: latest == null
+            ? Column(
+                children: [
+                  MananuHeader(title: 'Body', actions: actions),
+                  Expanded(child: _NoReadingsYet(driver: driver)),
                 ],
-                if (latest.notes.isNotEmpty) ...[
-                  _NotesCard(
-                    notes: latest.notes,
-                    confidence: latest.confidence,
+              )
+            : ListView(
+                padding: const EdgeInsets.fromLTRB(0, 0, 0, 120),
+                children: [
+                  MananuHeader(
+                    title: 'Body',
+                    label: 'Last reading '
+                        '${DateFormat('EEE d MMM, HH:mm').format(latest.takenAt)}',
+                    actions: actions,
                   ),
-                  const SizedBox(height: MananuSpacing.xl),
-                ],
-                MananuSection(
-                  title: 'This reading',
-                  child: Card(
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: MananuSpacing.lg,
+                    ),
                     child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        for (var i = 0; i < latest.metrics.length; i++) ...[
-                          if (i > 0) const Divider(height: 1),
-                          _MetricRow(metric: latest.metrics[i]),
+                        const SizedBox(height: MananuSpacing.sm),
+                        _TrendHeadline(
+                          medianBodyFat: trend,
+                          latest: latest,
+                          weeklyRateKg: rate,
+                        ),
+                        const SizedBox(height: MananuSpacing.xl),
+                        if (_WeightChartCard.hasEnough(series)) ...[
+                          _WeightChartCard(series: series),
+                          const SizedBox(height: MananuSpacing.xl),
                         ],
+                        if (latest.notes.isNotEmpty) ...[
+                          _NotesCard(
+                            notes: latest.notes,
+                            confidence: latest.confidence,
+                          ),
+                          const SizedBox(height: MananuSpacing.xl),
+                        ],
+                        MananuSection(
+                          title: 'This reading',
+                          child: _MetricGrid(metrics: latest.metrics),
+                        ),
+                        const SizedBox(height: MananuSpacing.xl),
+                        const _MethodCard(),
                       ],
                     ),
                   ),
-                ),
-                const SizedBox(height: MananuSpacing.xl),
-                const _MethodCard(),
-              ],
-            ),
+                ],
+              ),
+      ),
     );
   }
 
@@ -392,8 +402,30 @@ class _WeightChartCard extends StatelessWidget {
   }
 }
 
-class _MetricRow extends StatelessWidget {
-  const _MetricRow({required this.metric});
+/// Two columns of tiles: the value large, the label and its uncertainty
+/// small. A tile that is a fixed fraction of another prediction says so with
+/// a tinted face and a badge; tapping any tile explains it.
+class _MetricGrid extends StatelessWidget {
+  const _MetricGrid({required this.metrics});
+
+  final List<Metric> metrics;
+
+  @override
+  Widget build(BuildContext context) {
+    return GridView.count(
+      crossAxisCount: 2,
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      mainAxisSpacing: MananuSpacing.md,
+      crossAxisSpacing: MananuSpacing.md,
+      childAspectRatio: 1.55,
+      children: [for (final m in metrics) _MetricTile(metric: m)],
+    );
+  }
+}
+
+class _MetricTile extends StatelessWidget {
+  const _MetricTile({required this.metric});
 
   final Metric metric;
 
@@ -401,50 +433,153 @@ class _MetricRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final isEstimate = metric.derived == Derived.notMeasured;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final face = isEstimate
+        ? (isDark
+            ? MananuColors.estimated.withValues(alpha: 0.12)
+            : MananuColors.estimatedSoft)
+        : scheme.surface;
 
-    return ListTile(
-      contentPadding: const EdgeInsets.symmetric(
-        horizontal: MananuSpacing.lg,
-        vertical: MananuSpacing.sm,
+    return Material(
+      color: face,
+      shape: RoundedRectangleBorder(
+        borderRadius: MananuSpacing.radiusMd,
+        side: BorderSide(color: scheme.outline),
       ),
-      title: Row(
-        children: [
-          Flexible(child: Text(metric.label, style: MananuType.bodyStrong)),
-          if (isEstimate) ...[
-            const SizedBox(width: MananuSpacing.sm),
-            const ProvenanceBadge(
-              weighed: false,
-              label: 'Not measured',
-              dense: true,
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () => _explain(context),
+        child: Padding(
+          padding: const EdgeInsets.all(MananuSpacing.md),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    metric.label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: MananuType.caption.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: scheme.onSurface.withValues(alpha: 0.65),
+                    ),
+                  ),
+                  if (isEstimate) ...[
+                    const SizedBox(height: 4),
+                    const ProvenanceBadge(
+                      weighed: false,
+                      label: 'Not measured',
+                      dense: true,
+                    ),
+                  ],
+                ],
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      metric.display.trim(),
+                      style: MananuType.display.copyWith(
+                        fontSize: 24,
+                        color: scheme.onSurface,
+                      ),
+                    ),
+                  ),
+                  Text(
+                    metric.uncertaintyDisplay ??
+                        (metric.equation?.citation.split(' (').first ?? ' '),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: MananuType.caption.copyWith(
+                      fontSize: 11,
+                      color: scheme.onSurface.withValues(alpha: 0.45),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// The caveat and the equation, in the user's hand rather than in a
+  /// footnote. Every number carries its provenance (CLAUDE.md rule 4).
+  void _explain(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (_) => Padding(
+        padding: const EdgeInsets.fromLTRB(
+          MananuSpacing.xl,
+          MananuSpacing.sm,
+          MananuSpacing.xl,
+          MananuSpacing.xxl,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(metric.label, style: MananuType.title),
+            const SizedBox(height: MananuSpacing.sm),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.baseline,
+              textBaseline: TextBaseline.alphabetic,
+              children: [
+                Text(
+                  metric.display,
+                  style: MananuType.display.copyWith(fontSize: 32),
+                ),
+                if (metric.uncertaintyDisplay != null) ...[
+                  const SizedBox(width: MananuSpacing.sm),
+                  Text(
+                    metric.uncertaintyDisplay!,
+                    style: MananuType.body.copyWith(
+                      color: scheme.onSurface.withValues(alpha: 0.55),
+                    ),
+                  ),
+                ],
+              ],
             ),
-          ],
-        ],
-      ),
-      subtitle: metric.caveat == null
-          ? null
-          : Padding(
-              padding: const EdgeInsets.only(top: 4),
-              child: Text(
+            const SizedBox(height: MananuSpacing.lg),
+            if (metric.caveat != null) ...[
+              Text(
                 metric.caveat!,
+                style: MananuType.body.copyWith(
+                  color: scheme.onSurface.withValues(alpha: 0.75),
+                ),
+              ),
+              const SizedBox(height: MananuSpacing.md),
+            ],
+            if (metric.equation != null)
+              Text(
+                metric.derived == Derived.notMeasured
+                    ? 'A fixed fraction of a prediction from '
+                        '${metric.equation!.citation}.'
+                    : 'Predicted with ${metric.equation!.citation}. The ± is '
+                        'that equation\'s published standard error, not a '
+                        'property of this reading.',
+                style: MananuType.caption.copyWith(
+                  color: scheme.onSurface.withValues(alpha: 0.55),
+                ),
+              )
+            else if (metric.key == 'weight')
+              Text(
+                'Read directly from the scale.',
                 style: MananuType.caption.copyWith(
                   color: scheme.onSurface.withValues(alpha: 0.55),
                 ),
               ),
-            ),
-      trailing: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          Text(metric.display, style: MananuType.number.copyWith(fontSize: 17)),
-          if (metric.uncertaintyDisplay != null)
-            Text(
-              metric.uncertaintyDisplay!,
-              style: MananuType.caption.copyWith(
-                color: scheme.onSurface.withValues(alpha: 0.45),
-                fontSize: 11,
-              ),
-            ),
-        ],
+          ],
+        ),
       ),
     );
   }

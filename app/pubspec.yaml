@@ -74,3 +74,15 @@ flutter:
   assets:
     - assets/
     - assets/food/
+    - assets/brand/
+
+# Launcher icons from the brand monogram (brand/mananu-monogram.svg rendered
+# to PNG). Run after changing them: dart run flutter_launcher_icons
+flutter_launcher_icons:
+  android: true
+  ios: true
+  remove_alpha_ios: true
+  image_path: assets/brand/icon-1024.png
+  adaptive_icon_background: "#0D1012"
+  adaptive_icon_foreground: assets/brand/icon-foreground.png
+  adaptive_icon_monochrome: assets/brand/icon-foreground.png
