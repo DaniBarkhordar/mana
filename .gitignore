@@ -28,3 +28,7 @@ supabase/.branches/
 .DS_Store
 Thumbs.db
 *.swp
+
+# Python bytecode from the data-build scripts
+__pycache__/
+*.pyc

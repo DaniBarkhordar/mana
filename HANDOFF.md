@@ -14,8 +14,9 @@ Everything needed to finish the app is in this repo or in this document. Nothing
 | Built and tested | Not built |
 |---|---|
 | BIA engine — Sun 2003, Kyle 2001, Deurenberg 1991, Janssen 2000, Cunningham 1980, Mifflin-St Jeor, each with its published standard error and validity bounds | Real vendor driver (`PpBluetoothKitChannel` is a documented stub) |
-| Frame parsers for four BLE protocols, tested against captured ground-truth frames | Offline food database (script is scaffolded, loaders are TODO) |
-| Portion engine — running tare, yield factors, cooking-fat capture, personal calibration | Barcode scanning |
+| Frame parsers for four BLE protocols, tested against captured ground-truth frames | The `core.sqlite` data file itself — the pipeline is built and tested; run it where gov.uk and usda.gov are reachable (Phase 2) |
+| Portion engine — running tare, yield factors, cooking-fat capture, personal calibration | |
+| **Offline food search, barcode lookup, "from the pack" foods — Phase 2, code done.** FTS5 catalogue with exact/prefix ranking, user foods first, Open Food Facts cached per user | |
 | Supabase schema: RLS, consent records, cascade deletion, vision cache and metering, `observations` | Recipes UI (the model exists, no screen; a design is on the canvas) |
 | **Local persistence (Drift) and background sync — Phase 1, done.** Every screen reads SQLite; meals, readings, profile and consent survive a restart; unsynced rows push when a session exists, last-write-wins on `updated_at` | RevenueCat / paywall |
 | Vision Edge Function — cached, metered, context-enriched | Health Connect / HealthKit sync |
@@ -88,7 +89,33 @@ This is a cut-down FHIR `Observation`. Raw scale readings go in here; `body_meas
 
 ## Phase 2 — The offline food database
 
-`scripts/build_food_db.py` has the schema, the licence boundary and the attribution string. The two loaders are stubs.
+**Built; the data file is the one step left, and it needs a machine that can reach gov.uk and usda.gov** (the build session's egress policy blocks both, and openfoodfacts.org).
+
+What exists:
+
+- `scripts/build_food_db.py` — real loaders. CoFID: reads the Proximates and Inorganics sheets by header name, `Tr` and `N` become NULL, salt is sodium × 2.5, drinks are flagged `per_100ml`. USDA: joins `food.csv` to `food_nutrient.csv` (via `nutrient.csv` ids), skips branded rows. FTS5 index plus `name_norm`/`name_len` for ranking; attribution and provenance in `meta`. `--verify` times the acceptance query. Tests: `python3 scripts/test_build_food_db.py` (fixtures in the published layouts).
+- `app/lib/core/food/` — `FoodCatalog` opens the asset read-only (copied out of the bundle once, re-copied when it changes), searches with exact > prefix > mid-word ranking, UK rows first; `FoodSearch` merges the user's own foods (first) with the catalogue, or a starter list when the build has none; `OpenFoodFactsClient` with the required User-Agent, 15 requests a minute, and a pure parser.
+- `UserFoodRepository` — "from the pack" foods and barcode hits, synced like everything else. Recent foods come from meal components, so the empty search shows what the person actually eats.
+- Weigh food → Search: live results, barcode button (`mobile_scanner`, EAN/UPC only), "Add from the pack" form. A scan checks the user's cache, then Open Food Facts, then falls back to the form with the barcode attached so the next scan is instant.
+
+**To finish, on your machine:**
+
+```bash
+# 1. Download (both are free; the CoFID link is the 2021 xlsx, the USDA links
+#    are the "CSV" zips — Foundation, SR Legacy, FNDDS). Keep them in data/.
+# 2. Build and check:
+pip install openpyxl
+python3 scripts/build_food_db.py --cofid data/cofid_2021.xlsx \
+    --usda data/usda_sr_legacy data/usda_foundation data/usda_fndds
+python3 scripts/build_food_db.py --verify     # expects "chicken breast" < 100 ms, PASS
+git add app/assets/food/core.sqlite && git commit -m "Ship the offline food database"
+```
+
+If a CoFID column is not found, the script says which; the loader matches headers by prefix and the 2021 workbook's are listed in `PROXIMATES`.
+
+**Acceptance (unchanged):** aeroplane mode, search "chicken breast", get a UK CoFID row with per-100 g figures in under 100 ms. The in-app ranking test runs the same query over 4,000 rows in a few milliseconds.
+
+The original plan follows.
 
 **Do:**
 

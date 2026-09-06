@@ -15,6 +15,10 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../bia/body_composition.dart';
 import '../bia/equations.dart';
+import '../food/food_catalog.dart';
+import '../food/food_search.dart';
+import '../food/open_food_facts.dart';
+import '../food/starter_foods.dart';
 import '../nutrition/models.dart';
 import '../nutrition/portion.dart';
 import '../scale/scale_driver.dart';
@@ -24,6 +28,7 @@ import 'repositories/body_repository.dart';
 import 'repositories/meal_repository.dart';
 import 'repositories/observation_repository.dart';
 import 'repositories/profile_repository.dart';
+import 'repositories/user_food_repository.dart';
 import 'sync/supabase_sync_remote.dart';
 import 'sync/sync_engine.dart';
 import 'sync/sync_scheduler.dart';
@@ -63,6 +68,7 @@ class AppServices {
     required this.meals,
     required this.body,
     required this.observations,
+    required this.userFoods,
     this.sync,
   });
 
@@ -78,6 +84,7 @@ class AppServices {
       meals: MealRepository(db),
       body: BodyRepository(db, observations),
       observations: observations,
+      userFoods: UserFoodRepository(db),
       sync: sync,
     );
   }
@@ -87,6 +94,7 @@ class AppServices {
   final MealRepository meals;
   final BodyRepository body;
   final ObservationRepository observations;
+  final UserFoodRepository userFoods;
 
   /// Null when no backend is configured: the app is local-only.
   final SyncScheduler? sync;
@@ -123,6 +131,35 @@ final appServicesProvider = FutureProvider<AppServices>((ref) async {
     db.close();
   });
   return AppServices.over(db, sync: sync);
+});
+
+// ---------------------------------------------------------------------------
+// Foods
+// ---------------------------------------------------------------------------
+
+/// The shipped catalogue (CoFID + USDA), opened once. Null in a build that
+/// carries no `assets/food/core.sqlite`; search then covers the user's own
+/// foods plus a small starter list, and the sheet says so.
+final foodCatalogProvider = FutureProvider<FoodCatalog?>((ref) async {
+  final catalog = await FoodCatalog.openAsset();
+  ref.onDispose(() => catalog?.close());
+  return catalog;
+});
+
+final foodSearchProvider = FutureProvider<FoodSearch>((ref) async {
+  final services = await ref.watch(appServicesProvider.future);
+  final catalog = await ref.watch(foodCatalogProvider.future);
+  return FoodSearch(
+    catalog: catalog,
+    userFoods: services.userFoods,
+    fallback: starterFoods,
+  );
+});
+
+final openFoodFactsProvider = Provider<OpenFoodFactsClient>((ref) {
+  final client = OpenFoodFactsClient();
+  ref.onDispose(client.close);
+  return client;
 });
 
 // ---------------------------------------------------------------------------

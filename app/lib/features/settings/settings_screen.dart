@@ -111,11 +111,15 @@ class SettingsScreen extends ConsumerWidget {
                     ),
                     const SizedBox(height: MananuSpacing.md),
                     Text(
-                      "Nutrition data: McCance and Widdowson's The Composition "
-                      'of Foods Integrated Dataset, used under the Open '
-                      'Government Licence v3.0; USDA FoodData Central, public '
-                      'domain; barcode data from Open Food Facts under the '
-                      'Open Database Licence.',
+                      // The shipped catalogue carries its own attribution
+                      // string, written by the build that made it.
+                      ref.watch(foodCatalogProvider).valueOrNull?.attribution ??
+                          "Nutrition data: McCance and Widdowson's The "
+                              'Composition of Foods Integrated Dataset, used '
+                              'under the Open Government Licence v3.0; USDA '
+                              'FoodData Central, public domain; barcode data '
+                              'from Open Food Facts under the Open Database '
+                              'Licence.',
                       style: MananuType.caption.copyWith(
                         color: Theme.of(context)
                             .colorScheme

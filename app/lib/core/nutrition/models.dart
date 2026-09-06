@@ -155,6 +155,7 @@ class FoodItem {
     this.barcode,
     this.state = FoodState.asPurchased,
     this.householdMeasures = const [],
+    this.per100ml = false,
   });
 
   final String id;
@@ -163,6 +164,12 @@ class FoodItem {
   final String? barcode;
   final NutrientsPer100g per100g;
   final NutritionSource source;
+
+  /// True for drinks whose reference figures are per 100 ml rather than
+  /// per 100 g (CoFID gives alcohol this way). The scale reads grams; for
+  /// water-like drinks the two are within a few percent, and the app says so
+  /// rather than pretending the row is per 100 g.
+  final bool per100ml;
 
   /// Whether the per-100 g figures describe the food raw or cooked. Getting this
   /// wrong is worth hundreds of calories a day on staples like rice and pasta.

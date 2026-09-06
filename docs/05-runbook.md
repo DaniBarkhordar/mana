@@ -92,8 +92,14 @@ If the credentials are slow to arrive, `lib/core/scale/frames.dart` already pars
 ## 5. The food database
 
 ```bash
-python3 scripts/build_food_db.py    # CoFID + USDA -> assets/food/core.sqlite
+pip install openpyxl
+python3 scripts/build_food_db.py --cofid data/cofid_2021.xlsx \
+    --usda data/usda_sr_legacy data/usda_foundation data/usda_fndds
+python3 scripts/build_food_db.py --verify          # "chicken breast" in < 100 ms
+python3 scripts/test_build_food_db.py              # loader tests on fixtures
 ```
+
+Inputs go under `data/` (git-ignored): the CoFID 2021 workbook from gov.uk and the USDA FoodData Central "CSV" zips, unpacked. The output, `app/assets/food/core.sqlite`, is committed and ships in the binary; the app copies it out of the bundle on first run and re-copies when it changes. A build with no file still runs — search covers the user's own foods and a starter list, and the sheet says so.
 
 The licence boundary is enforced in the schema, not just in a comment, because the export job must not be able to get it wrong:
 
