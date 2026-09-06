@@ -27,9 +27,15 @@ class LoggedComponent {
     required this.grams,
     required this.method,
     this.note,
+    this.isCookingFat = false,
   });
 
   final FoodItem food;
+
+  /// True when this is fat measured by weighing the pan before and after —
+  /// the line item no photo app can produce. Stored as its own column so it
+  /// can be counted.
+  final bool isCookingFat;
 
   /// Edible grams actually consumed, after any yield conversion.
   final double grams;
@@ -188,6 +194,7 @@ class CookingFatCapture {
         food: fat,
         grams: gramsPerPortion,
         method: PortionMethod.weighed,
+        isCookingFat: true,
         note: 'Cooking fat absorbed — '
             '${gramsAbsorbed.toStringAsFixed(0)} g across $portions '
             '${portions == 1 ? 'portion' : 'portions'}',

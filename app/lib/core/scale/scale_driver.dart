@@ -275,7 +275,7 @@ class SimulatedScaleDriver implements ScaleDriver {
   Stream<DiscoveredScale> scan({
     Duration timeout = const Duration(seconds: 30),
   }) async* {
-    _state.add(ScaleConnectionState.scanning);
+    _setState(ScaleConnectionState.scanning);
     await Future<void>.delayed(const Duration(milliseconds: 300));
     yield DiscoveredScale(
       id: 'sim-0001',
@@ -291,48 +291,101 @@ class SimulatedScaleDriver implements ScaleDriver {
   @override
   Future<void> stopScan() async {}
 
-  @override
-  Future<void> connect(DiscoveredScale scale) async {
-    _state.add(ScaleConnectionState.connecting);
-    await Future<void>.delayed(const Duration(milliseconds: 400));
-    _state.add(ScaleConnectionState.connected);
-    _startStreaming();
+  /// What is on the demo kitchen scale, in grams.
+  double _loadGrams = 0;
+
+  /// The weight the demo body scale converges on.
+  double bodyWeightKg = 78.4;
+
+  ScaleConnectionState _current = ScaleConnectionState.disconnected;
+  bool _disposed = false;
+
+  bool get isConnected => _current == ScaleConnectionState.connected;
+
+  void _setState(ScaleConnectionState s) {
+    if (_disposed) return;
+    _current = s;
+    _state.add(s);
   }
 
-  void _startStreaming() {
-    final target = kind == ScaleKind.body ? 78.4 : 0.0;
-    var t = 0;
+  void _emit(WeightSample sample) {
+    if (!_disposed) _samples.add(sample);
+  }
+
+  @override
+  Future<void> connect(DiscoveredScale scale) async {
+    _setState(ScaleConnectionState.connecting);
+    await Future<void>.delayed(const Duration(milliseconds: 400));
+    // The app may have gone away during the delay; never start a stream on a
+    // disposed driver.
+    if (_disposed) return;
+    _setState(ScaleConnectionState.connected);
+    if (kind == ScaleKind.kitchen) _startKitchenStream();
+    // The body scale waits to be stepped on: see [simulateReading].
+  }
+
+  /// A real kitchen scale streams continuously while switched on.
+  void _startKitchenStream() {
     _timer?.cancel();
-    _timer = Timer.periodic(const Duration(milliseconds: 200), (timer) {
-      t++;
-      if (kind == ScaleKind.body) {
-        // Converge on the target, then lock.
-        final settling = t < 8;
-        final wobble = settling ? (8 - t) * 0.4 : 0.0;
-        _samples.add(
-          WeightSample(
-            kg: target + wobble,
-            isStable: !settling,
-            at: DateTime.now(),
-            impedanceOhm: settling ? null : 512.0,
-          ),
-        );
-        if (!settling) timer.cancel();
-      } else {
-        _samples.add(
-          WeightSample(
-            kg: 0,
-            isStable: true,
-            at: DateTime.now(),
-          ),
-        );
-      }
+    if (_disposed) return;
+    _timer = Timer.periodic(const Duration(milliseconds: 200), (_) {
+      _emit(
+        WeightSample(
+          kg: _loadGrams / 1000.0,
+          isStable: true,
+          at: DateTime.now(),
+        ),
+      );
     });
+  }
+
+  /// Demo: put [grams] on the kitchen scale. Ramps through a few live samples
+  /// before settling, the way a real load cell does, so the readout's
+  /// settled-versus-moving colour can be seen working.
+  Future<void> setLoadGrams(double grams) async {
+    final from = _loadGrams;
+    _loadGrams = grams;
+    if (kind != ScaleKind.kitchen || !isConnected) return;
+    _timer?.cancel();
+    for (var i = 1; i <= 4; i++) {
+      final g = from + (grams - from) * i / 4 + (i < 4 ? (4 - i) * 0.7 : 0);
+      _emit(
+        WeightSample(kg: g / 1000.0, isStable: false, at: DateTime.now()),
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 120));
+    }
+    _startKitchenStream();
+  }
+
+  /// Demo: step on the body scale. Emits a settling sequence and then exactly
+  /// one stable sample carrying an impedance, as the real hardware does.
+  Future<void> simulateReading({double? kg, double impedanceOhm = 512}) async {
+    if (kind != ScaleKind.body) return;
+    final target = kg ?? bodyWeightKg;
+    bodyWeightKg = target;
+    for (var t = 1; t < 8; t++) {
+      _emit(
+        WeightSample(
+          kg: target + (8 - t) * 0.4,
+          isStable: false,
+          at: DateTime.now(),
+        ),
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+    }
+    _emit(
+      WeightSample(
+        kg: target,
+        isStable: true,
+        at: DateTime.now(),
+        impedanceOhm: impedanceOhm,
+      ),
+    );
   }
 
   /// Test and demo hook: push an arbitrary reading.
   void emit(double kg, {bool stable = true, double? impedanceOhm}) {
-    _samples.add(
+    _emit(
       WeightSample(
         kg: kg,
         isStable: stable,
@@ -345,16 +398,18 @@ class SimulatedScaleDriver implements ScaleDriver {
   @override
   Future<void> disconnect() async {
     _timer?.cancel();
-    _state.add(ScaleConnectionState.disconnected);
+    _setState(ScaleConnectionState.disconnected);
   }
 
   @override
   Future<void> tare() async {
-    _samples.add(WeightSample(kg: 0, isStable: true, at: DateTime.now()));
+    _loadGrams = 0;
+    _emit(WeightSample(kg: 0, isStable: true, at: DateTime.now()));
   }
 
   @override
   Future<void> dispose() async {
+    _disposed = true;
     _timer?.cancel();
     await _state.close();
     await _samples.close();

@@ -49,6 +49,7 @@ class _WeighFoodScreenState extends ConsumerState<WeighFoodScreen> {
     final isStable = live.valueOrNull?.isStable ?? false;
     final captured = ref.read(weighSessionProvider.notifier).platformGrams;
     final delta = grams - captured;
+    final driver = ref.watch(kitchenScaleDriverProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -72,6 +73,8 @@ class _WeighFoodScreenState extends ConsumerState<WeighFoodScreen> {
             isStable: isStable,
             connection: connection,
           ),
+          if (driver is SimulatedScaleDriver)
+            _DemoLoadControls(driver: driver, currentGrams: grams),
           const Divider(height: 1),
           Expanded(
             child: components.isEmpty
@@ -144,33 +147,77 @@ class _WeighFoodScreenState extends ConsumerState<WeighFoodScreen> {
     }
   }
 
-  void _save() {
+  /// Writes the meal to SQLite and returns. Sync happens on its own, later;
+  /// nothing here waits for a network.
+  Future<void> _save() async {
     final components = ref.read(weighSessionProvider);
     if (components.isEmpty) return;
-    final meals = ref.read(todaysMealsProvider);
-    ref.read(todaysMealsProvider.notifier).state = [
-      ...meals,
-      LoggedMeal(
-        id: DateTime.now().microsecondsSinceEpoch.toString(),
-        eatenAt: DateTime.now(),
-        slot: _slotForNow(),
-        components: components,
-      ),
-    ];
+    final services = await ref.read(appServicesProvider.future);
+    final now = DateTime.now();
+    await services.meals.logMeal(
+      components: components,
+      eatenAt: now,
+      slot: MealSlot.forHour(now.hour),
+    );
     ref.read(weighSessionProvider.notifier).reset();
-    Navigator.of(context).pop();
-  }
-
-  static String _slotForNow() {
-    final h = DateTime.now().hour;
-    if (h < 11) return 'breakfast';
-    if (h < 15) return 'lunch';
-    if (h < 21) return 'dinner';
-    return 'snack';
+    if (mounted) Navigator.of(context).pop();
   }
 }
 
 // ---------------------------------------------------------------------------
+
+/// Stands in for putting something on the scale when the driver is the
+/// simulator. Present in the release build on purpose: App Review cannot test
+/// a Bluetooth scale they do not have, and this is their route through the
+/// flow (CLAUDE.md rule 9). Labelled as a demo so it can never be mistaken for
+/// a measurement.
+class _DemoLoadControls extends StatelessWidget {
+  const _DemoLoadControls({required this.driver, required this.currentGrams});
+
+  final SimulatedScaleDriver driver;
+  final double currentGrams;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    Widget chip(String label, double grams) => ActionChip(
+          label: Text(label),
+          labelStyle: MananuType.caption.copyWith(fontWeight: FontWeight.w600),
+          side: BorderSide(color: scheme.outline),
+          onPressed: () => driver.setLoadGrams(grams),
+        );
+    return Container(
+      color: scheme.surface,
+      padding: const EdgeInsets.fromLTRB(
+        MananuSpacing.lg,
+        0,
+        MananuSpacing.lg,
+        MananuSpacing.md,
+      ),
+      child: Row(
+        children: [
+          Text(
+            'Demo scale',
+            style: MananuType.label.copyWith(
+              color: scheme.onSurface.withValues(alpha: 0.45),
+            ),
+          ),
+          const SizedBox(width: MananuSpacing.md),
+          Expanded(
+            child: Wrap(
+              spacing: MananuSpacing.sm,
+              children: [
+                chip('+75 g', currentGrams + 75),
+                chip('+160 g', currentGrams + 160),
+                chip('Empty', 0),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
 class _ScaleReadout extends StatelessWidget {
   const _ScaleReadout({

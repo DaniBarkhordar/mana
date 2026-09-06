@@ -16,6 +16,8 @@
 /// experience, drip pricing has been prohibited in the UK since April 2025.
 library;
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -52,7 +54,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
 
   void _next() {
     if (_page == _pageCount - 1) {
-      _finish();
+      unawaited(_finish());
       return;
     }
     _controller.nextPage(
@@ -61,14 +63,28 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     );
   }
 
-  void _finish() {
+  /// Writes the profile and the consent decision to SQLite. The profile stream
+  /// then moves the app on; nothing here needs a network.
+  Future<void> _finish() async {
     final sex = _sex;
     if (sex == null) return;
-    ref.read(userProfileProvider.notifier).state = UserProfile(
+    final services = await ref.read(appServicesProvider.future);
+    final now = DateTime.now();
+    await services.profiles.save(
       heightCm: _heightCm,
-      ageYears: _age,
+      dateOfBirth: UserProfile.dateOfBirthForAge(_age, today: now),
       sex: sex,
       activity: _activity,
+    );
+    // Recorded either way. A refusal is a decision too, and the next reading
+    // must know it.
+    await services.profiles.recordConsent(
+      ConsentRecord(
+        purpose: ConsentRecord.bodyComposition,
+        policyVersion: ConsentRecord.currentPolicyVersion,
+        granted: _consentBodyComposition,
+        grantedAt: now,
+      ),
     );
     widget.onComplete();
   }
@@ -154,50 +170,57 @@ class _WelcomePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: MananuSpacing.xl),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Text('Weigh it.\nDon\'t guess it.', style: MananuType.display),
-          const SizedBox(height: MananuSpacing.lg),
-          Text(
-            'Photo calorie apps guess how much is on your plate, and portion '
-            'size is where they go wrong. Mananu uses the camera only to work '
-            'out what the food is. The amount comes off the scale.',
-            style: MananuType.body.copyWith(
-              color: scheme.onSurface.withValues(alpha: 0.7),
-            ),
-          ),
-          const SizedBox(height: MananuSpacing.xxl),
+    // Centred on a tall phone; scrolls on a short one or with large text.
+    return LayoutBuilder(
+      builder: (context, constraints) => SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(horizontal: MananuSpacing.xl),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minHeight: constraints.maxHeight),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Text(
+                'Weigh it.\nDon\'t guess it.',
+                style: MananuType.display,
+              ),
+              const SizedBox(height: MananuSpacing.lg),
+              Text(
+                'Photo calorie apps guess how much is on your plate, and portion '
+                'size is where they go wrong. Mananu uses the camera only to work '
+                'out what the food is. The amount comes off the scale.',
+                style: MananuType.body.copyWith(
+                  color: scheme.onSurface.withValues(alpha: 0.7),
+                ),
+              ),
+              const SizedBox(height: MananuSpacing.xxl),
 
-          // Pricing stated up front, before any personal data is collected.
-          Container(
-            padding: const EdgeInsets.all(MananuSpacing.lg),
-            decoration: BoxDecoration(
-              color: scheme.surfaceContainerHighest,
-              borderRadius: MananuSpacing.radiusMd,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('What it costs', style: MananuType.heading),
-                const SizedBox(height: MananuSpacing.sm),
-                Text(
-                  'Weighing, barcode scanning, manual logging and your body '
-                  'trends are free, forever, with no account limits.\n\n'
-                  'Photo recognition is free for 30 scans a month. Beyond that, '
-                  'Plus is £4.99 a month or £39.99 a year. You can cancel in two '
-                  'taps and nothing renews without telling you first.',
-                  style: MananuType.caption.copyWith(
-                    color: scheme.onSurface.withValues(alpha: 0.7),
+              // Pricing stated up front, before any personal data is collected.
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(MananuSpacing.lg),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('What it costs', style: MananuType.heading),
+                      const SizedBox(height: MananuSpacing.sm),
+                      Text(
+                        'Weighing, barcode scanning, manual logging and your body '
+                        'trends are free, forever, with no account limits.\n\n'
+                        'Photo recognition is free for 30 scans a month. Beyond that, '
+                        'Plus is £4.99 a month or £39.99 a year. You can cancel in two '
+                        'taps and nothing renews without telling you first.',
+                        style: MananuType.caption.copyWith(
+                          color: scheme.onSurface.withValues(alpha: 0.7),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }

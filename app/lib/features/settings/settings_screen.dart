@@ -57,6 +57,8 @@ class SettingsScreen extends ConsumerWidget {
             child: Card(
               child: Column(
                 children: [
+                  const _BackupTile(),
+                  const Divider(height: 1),
                   const _NavTile(
                     icon: Icons.verified_user_outlined,
                     title: 'Body composition consent',
@@ -154,6 +156,61 @@ class SettingsScreen extends ConsumerWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Where the diary stands: on this phone only, or backed up. Honest about the
+/// build too — a build with no backend configured says so rather than
+/// pretending to sync.
+class _BackupTile extends ConsumerWidget {
+  const _BackupTile();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final services = ref.watch(appServicesProvider).valueOrNull;
+    final report = ref.watch(syncReportProvider).valueOrNull;
+    final pending = ref.watch(unsyncedMealCountProvider).valueOrNull ?? 0;
+    final canSync = services?.canSync ?? false;
+
+    final String subtitle;
+    if (!canSync) {
+      subtitle = 'Saved on this phone. This build has no cloud backup.';
+    } else if (report == null) {
+      subtitle = 'Saved on this phone. Backing up shortly.';
+    } else {
+      subtitle = switch (report.outcome) {
+        SyncOutcome.synced => pending == 0
+            ? 'Everything is backed up.'
+            : '$pending ${pending == 1 ? 'meal' : 'meals'} waiting to back up.',
+        SyncOutcome.noSession =>
+          'Saved on this phone. Will back up when online.',
+        SyncOutcome.failed =>
+          'Could not reach the server. Safe on this phone; retrying.',
+        SyncOutcome.busy => 'Backing up now.',
+      };
+    }
+
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(
+        horizontal: MananuSpacing.lg,
+        vertical: MananuSpacing.sm,
+      ),
+      leading: Icon(
+        canSync && pending == 0 && report?.succeeded == true
+            ? Icons.cloud_done_outlined
+            : Icons.cloud_off_outlined,
+        color: Theme.of(context).colorScheme.onSurface,
+        size: 21,
+      ),
+      title: const Text('Backup', style: MananuType.bodyStrong),
+      subtitle: Text(subtitle, style: MananuType.caption),
+      trailing: canSync
+          ? TextButton(
+              onPressed: () => services?.sync?.syncNow(),
+              child: const Text('Sync now'),
+            )
+          : null,
     );
   }
 }

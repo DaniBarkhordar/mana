@@ -14,13 +14,14 @@ Everything needed to finish the app is in this repo or in this document. Nothing
 | Built and tested | Not built |
 |---|---|
 | BIA engine — Sun 2003, Kyle 2001, Deurenberg 1991, Janssen 2000, Cunningham 1980, Mifflin-St Jeor, each with its published standard error and validity bounds | Real vendor driver (`PpBluetoothKitChannel` is a documented stub) |
-| Frame parsers for four BLE protocols, tested against captured ground-truth frames | Local persistence (Drift) — providers currently hold state in memory |
-| Portion engine — running tare, yield factors, cooking-fat capture, personal calibration | Supabase repositories and sync |
-| Supabase schema: RLS, consent records, cascade deletion, vision cache and metering | Offline food database (script is scaffolded, loaders are TODO) |
-| Vision Edge Function — cached, metered, context-enriched | Barcode scanning |
-| Today, Body, Weigh food, Onboarding, Settings screens | Recipes UI (the model exists, no screen) |
-| Design system in `theme/tokens.dart` | RevenueCat / paywall |
-| 40-check independent verification of the maths and byte parsing | Health Connect / HealthKit sync |
+| Frame parsers for four BLE protocols, tested against captured ground-truth frames | Offline food database (script is scaffolded, loaders are TODO) |
+| Portion engine — running tare, yield factors, cooking-fat capture, personal calibration | Barcode scanning |
+| Supabase schema: RLS, consent records, cascade deletion, vision cache and metering, `observations` | Recipes UI (the model exists, no screen; a design is on the canvas) |
+| **Local persistence (Drift) and background sync — Phase 1, done.** Every screen reads SQLite; meals, readings, profile and consent survive a restart; unsynced rows push when a session exists, last-write-wins on `updated_at` | RevenueCat / paywall |
+| Vision Edge Function — cached, metered, context-enriched | Health Connect / HealthKit sync |
+| Today, Body (with a 30-day trend chart), Weigh food, Onboarding, Settings screens | Sign-in beyond the anonymous session (Phase 4) |
+| Design system in `theme/tokens.dart`, and the screens on a Claude Design canvas (`design/`) | |
+| 40-check independent verification of the maths and byte parsing; repository and sync tests on an in-memory database | |
 
 ## Start here
 
@@ -39,7 +40,18 @@ If `flutter test` is red on a clean checkout, fix that before starting a phase.
 
 ## Phase 1 — Persistence and sync
 
-Right now `todaysMealsProvider` and `bodyHistoryProvider` are `StateProvider`s holding lists in memory. Everything vanishes on restart. This is the first real gap.
+**Done.** What was built, and where:
+
+- `app/lib/core/data/db/` — Drift schema mirroring `supabase/migrations/` column for column, plus `observations`. Every synced row has a client-generated uuid, `updated_at`, and a local `synced_at` that records the *version* pushed, not a time, so clock skew between phone and server cannot make a row look dirty. Deletions are tombstones (`deleted_at`) so they sync.
+- `app/lib/core/data/repositories/` — `ProfileRepository`, `MealRepository`, `BodyRepository`, `ObservationRepository`. SQLite only; the UI never awaits the network. A body reading stores the raw inputs (height, age, sex snapshotted), the derived figures with their equation, and one observation row each for weight, impedance and body fat.
+- `app/lib/core/data/sync/` — `SyncEngine` pulls then pushes (that order is what makes last-write-wins safe), driven by `syncTables` in `database.dart`; `SyncScheduler` runs it after every local write, on resume, and every minute. `SupabaseSyncRemote` signs in anonymously on first contact so the diary is backed up from day one; Phase 4 links that user to Apple/Google/email without re-keying a row. Enable **anonymous sign-ins** in the Supabase dashboard (Authentication → Providers).
+- `supabase/migrations/0003_observations_and_sync.sql` — the `observations` table, and `updated_at`/`deleted_at` on every synced table.
+- Build with `--dart-define=SUPABASE_URL=... --dart-define=SUPABASE_PUBLISHABLE_KEY=...`. Without them the app is local-only and Settings says so.
+- Tests: `app/test/data/`. Run `flutter test`.
+
+**Acceptance (for the founder to check on a device):** log a meal in aeroplane mode, force-quit, reopen — the meal is there with the small cloud-off mark. Reconnect, and it lands in Supabase within a minute; the mark clears and Settings → Backup reads "Everything is backed up."
+
+The original plan follows, kept for the reasoning.
 
 **Do this first, because it shapes everything after:** add an `observations` table (Drift and Postgres) —
 
@@ -127,6 +139,8 @@ What is needed, and who to ask — the full list with wording is in `docs/01-fac
 5. CSV export of everything.
 6. RevenueCat: free tier and Plus. Mirror entitlements into `public.entitlements` from the webhook — **the app never decides its own tier**.
 7. A separate, explicit consent before the first photo scan, naming the AI provider. Apple 5.1.2(i) requires explicit permission before sharing data with third-party AI, and this is directly on point.
+8. Keep the local database out of iCloud. Android is done (`allowBackup="false"` and data-extraction rules in the manifest). iOS needs `NSURLIsExcludedFromBackupKey` set on `mananu.sqlite` from native code — a few lines in `AppDelegate.swift` behind a method channel, or a tiny plugin. See `AppDatabase.open()`.
+9. Link the anonymous user created by sync to the real sign-in (`linkIdentity` / `updateUser`), rather than creating a second user, so nothing is re-keyed.
 
 **Acceptance:** two accounts on one device see strictly separate data. Deleting an account leaves no rows anywhere, verified in SQL.
 

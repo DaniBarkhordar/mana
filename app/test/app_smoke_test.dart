@@ -1,0 +1,239 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:mananu/app.dart';
+import 'package:mananu/core/bia/equations.dart';
+import 'package:mananu/core/data/providers.dart';
+import 'package:mananu/core/nutrition/models.dart';
+import 'package:mananu/core/nutrition/portion.dart';
+import 'package:mananu/core/scale/scale_driver.dart';
+
+/// Boots the whole app on an in-memory database with no backend configured —
+/// exactly the aeroplane-mode case — and walks the main flow: onboarding,
+/// a logged meal on Today, a body reading on Body.
+void main() {
+  late AppServices services;
+
+  Widget app() => ProviderScope(
+        overrides: [
+          appServicesProvider.overrideWith((ref) async => services),
+        ],
+        child: const MananuApp(),
+      );
+
+  setUp(() => services = AppServices.inMemory());
+  tearDown(() => services.db.close());
+
+  /// A phone, not the 800×600 default: lists only build what fits, and the
+  /// onboarding controls sit below that fold.
+  Future<void> pumpApp(WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1170, 2532);
+    tester.view.devicePixelRatio = 3.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(app());
+  }
+
+  /// The database opens and the first stream values arrive over a few frames.
+  Future<void> settle(WidgetTester tester) async {
+    for (var i = 0; i < 5; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+  }
+
+  /// Disposes the app and lets the simulator's pending delays run out.
+  Future<void> shutDown(WidgetTester tester) async {
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(seconds: 2));
+  }
+
+  Future<void> completeOnboarding(WidgetTester tester) async {
+    final now = DateTime.now();
+    await services.profiles.save(
+      heightCm: 178,
+      dateOfBirth: UserProfile.dateOfBirthForAge(34, today: now),
+      sex: Sex.male,
+      activity: ActivityLevel.lowActive,
+    );
+    await services.profiles.recordConsent(
+      ConsentRecord(
+        purpose: ConsentRecord.bodyComposition,
+        policyVersion: ConsentRecord.currentPolicyVersion,
+        granted: true,
+        grantedAt: now,
+      ),
+    );
+    await settle(tester);
+  }
+
+  testWidgets('starts on onboarding when there is no profile', (tester) async {
+    await pumpApp(tester);
+    await settle(tester);
+    expect(find.text("Weigh it.\nDon't guess it."), findsOneWidget);
+    expect(find.text('Continue'), findsOneWidget);
+    await shutDown(tester);
+  });
+
+  testWidgets('onboarding writes a profile, and the app moves on to Today',
+      (tester) async {
+    await pumpApp(tester);
+    await settle(tester);
+
+    // Page 1 → 2.
+    await tester.tap(find.text('Continue'));
+    await settle(tester);
+    // Sex is required before the page can advance.
+    await tester.tap(find.text('Male'));
+    await tester.pump();
+    await tester.tap(find.text('Continue'));
+    await settle(tester);
+    // Activity page.
+    await tester.tap(find.text('Continue'));
+    await settle(tester);
+    // Consent page: the box sits below the fold on a phone, so scroll to it.
+    await tester.ensureVisible(find.byType(CheckboxListTile));
+    await tester.pump();
+    await tester.tap(find.byType(CheckboxListTile));
+    await tester.pump();
+    await tester.tap(find.text('Start'));
+    await settle(tester);
+
+    expect(find.text('Today'), findsWidgets);
+    expect(find.text('Nothing logged yet today'), findsOneWidget);
+
+    final profile = await services.profiles.currentProfile();
+    expect(profile, isNotNull);
+    expect(profile!.sex, Sex.male);
+    final consent = await tester.runAsync(
+      () => services.profiles
+          .watchLatestConsent(ConsentRecord.bodyComposition)
+          .first,
+    );
+    expect(consent!.granted, isTrue);
+    await shutDown(tester);
+  });
+
+  testWidgets('a meal logged in SQLite shows on Today, marked unsynced',
+      (tester) async {
+    await pumpApp(tester);
+    await completeOnboarding(tester);
+    expect(find.text('Nothing logged yet today'), findsOneWidget);
+
+    const rice = FoodItem(
+      id: 'cofid:11-020',
+      name: 'Basmati rice, dry',
+      per100g: NutrientsPer100g(kcal: 356, proteinG: 8.1, carbG: 78, fatG: 1),
+      source: NutritionSource.cofid,
+    );
+    final session = WeighSession()..addTared(food: rice, grams: 75);
+    await services.meals.logMeal(
+      components: session.components,
+      eatenAt: DateTime.now(),
+      slot: MealSlot.lunch,
+    );
+    await settle(tester);
+
+    expect(find.text('Lunch'), findsOneWidget);
+    expect(find.text('267 kcal'), findsOneWidget);
+    // No backend in this build: the meal is on the phone only.
+    expect(find.byIcon(Icons.cloud_off_outlined), findsOneWidget);
+    expect(find.text('Nothing logged yet today'), findsNothing);
+    await shutDown(tester);
+  });
+
+  testWidgets('a simulated body reading is stored and shown on Body',
+      (tester) async {
+    await pumpApp(tester);
+    await completeOnboarding(tester);
+    // Let the simulated scales connect.
+    await tester.pump(const Duration(seconds: 1));
+
+    await tester.tap(find.text('Body'));
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('No readings yet'), findsOneWidget);
+
+    await tester.tap(find.text('Simulate stepping on'));
+    // Seven settling samples at 200 ms, then the stable one.
+    await tester.pump(const Duration(seconds: 2));
+    await settle(tester);
+
+    expect(find.text('No readings yet'), findsNothing);
+    expect(find.text('BODY FAT · 7-DAY MEDIAN'), findsOneWidget);
+
+    final history =
+        (await tester.runAsync(() => services.body.watchHistory().first))!;
+    expect(history, hasLength(1));
+    expect(history.single.weightKg, closeTo(78.4, 1e-9));
+    expect(history.single.metric('bodyFatPercent'), isNotNull);
+    final kinds = (await services.db.select(services.db.observations).get())
+        .map((o) => o.kind)
+        .toSet();
+    expect(kinds, {'weight_kg', 'impedance_ohm', 'body_fat_pct'});
+    final source =
+        (await services.db.select(services.db.observations).get()).first.source;
+    expect(source, 'simulated_scale');
+    await shutDown(tester);
+  });
+
+  testWidgets('without consent a reading is stored weight-only',
+      (tester) async {
+    await pumpApp(tester);
+    final now = DateTime.now();
+    await services.profiles.save(
+      heightCm: 178,
+      dateOfBirth: UserProfile.dateOfBirthForAge(34, today: now),
+      sex: Sex.male,
+      activity: ActivityLevel.lowActive,
+    );
+    await services.profiles.recordConsent(
+      ConsentRecord(
+        purpose: ConsentRecord.bodyComposition,
+        policyVersion: ConsentRecord.currentPolicyVersion,
+        granted: false,
+        grantedAt: now,
+      ),
+    );
+    await settle(tester);
+    await tester.pump(const Duration(seconds: 1));
+    await tester.tap(find.text('Body'));
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.tap(find.text('Simulate stepping on'));
+    await tester.pump(const Duration(seconds: 2));
+    await settle(tester);
+
+    final history =
+        (await tester.runAsync(() => services.body.watchHistory().first))!;
+    expect(history.single.impedanceOhm, isNull);
+    expect(history.single.metric('fatFreeMass'), isNull);
+    expect(find.text('Weight only for this reading'), findsOneWidget);
+    await shutDown(tester);
+  });
+
+  testWidgets('Settings says plainly that this build has no backup',
+      (tester) async {
+    await pumpApp(tester);
+    await completeOnboarding(tester);
+    await tester.tap(find.text('Settings'));
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(
+      find.text('Saved on this phone. This build has no cloud backup.'),
+      findsOneWidget,
+    );
+    await shutDown(tester);
+  });
+
+  test('the kitchen demo control ramps to the load and settles', () async {
+    final driver = SimulatedScaleDriver(kind: ScaleKind.kitchen);
+    final found = await driver.scan().first;
+    await driver.connect(found);
+    final samples = <WeightSample>[];
+    final sub = driver.samples.listen(samples.add);
+    await driver.setLoadGrams(160);
+    await Future<void>.delayed(const Duration(milliseconds: 250));
+    await sub.cancel();
+    await driver.dispose();
+    expect(samples.any((s) => !s.isStable), isTrue);
+    expect(samples.last.isStable, isTrue);
+    expect(samples.last.grams, closeTo(160, 1e-9));
+  });
+}

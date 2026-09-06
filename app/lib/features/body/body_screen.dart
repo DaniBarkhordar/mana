@@ -12,11 +12,14 @@
 /// median, an uncertainty band, and today's raw figure underneath it.
 library;
 
+import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 
 import '../../core/bia/body_composition.dart';
 import '../../core/data/providers.dart';
+import '../../core/scale/scale_driver.dart';
 import '../../theme/tokens.dart';
 
 class BodyScreen extends ConsumerWidget {
@@ -27,11 +30,19 @@ class BodyScreen extends ConsumerWidget {
     final latest = ref.watch(latestBodyMeasurementProvider);
     final trend = ref.watch(bodyFatTrendProvider);
     final rate = ref.watch(weightTrendRateProvider);
+    final series = ref.watch(weightSeriesProvider);
+    final driver = ref.watch(bodyScaleDriverProvider);
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Body'),
         actions: [
+          if (driver is SimulatedScaleDriver && latest != null)
+            IconButton(
+              onPressed: () => driver.simulateReading(),
+              icon: const Icon(Icons.monitor_weight_outlined),
+              tooltip: 'Simulate stepping on (demo)',
+            ),
           IconButton(
             onPressed: () => _showProtocol(context),
             icon: const Icon(Icons.info_outline),
@@ -40,7 +51,7 @@ class BodyScreen extends ConsumerWidget {
         ],
       ),
       body: latest == null
-          ? const _NoReadingsYet()
+          ? _NoReadingsYet(driver: driver)
           : ListView(
               padding: const EdgeInsets.fromLTRB(
                 MananuSpacing.lg,
@@ -55,6 +66,10 @@ class BodyScreen extends ConsumerWidget {
                   weeklyRateKg: rate,
                 ),
                 const SizedBox(height: MananuSpacing.xl),
+                if (_WeightChartCard.hasEnough(series)) ...[
+                  _WeightChartCard(series: series),
+                  const SizedBox(height: MananuSpacing.xl),
+                ],
                 if (latest.notes.isNotEmpty) ...[
                   _NotesCard(
                     notes: latest.notes,
@@ -137,21 +152,31 @@ class _TrendHeadline extends StatelessWidget {
                     color: scheme.onSurface.withValues(alpha: 0.6),
                   ),
                 ),
-                const Spacer(),
+                const SizedBox(width: MananuSpacing.md),
                 if (today?.uncertainty != null)
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: MananuSpacing.md,
-                      vertical: MananuSpacing.sm,
-                    ),
-                    decoration: BoxDecoration(
-                      color: scheme.surfaceContainerHighest,
-                      borderRadius: MananuSpacing.radiusSm,
-                    ),
-                    child: Text(
-                      '± ${today!.uncertainty!.toStringAsFixed(1)} pts',
-                      style: MananuType.caption.copyWith(
-                        color: scheme.onSurface.withValues(alpha: 0.7),
+                  // Takes what is left and shrinks rather than overflowing
+                  // under large accessibility text.
+                  Expanded(
+                    child: Align(
+                      alignment: Alignment.centerRight,
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: MananuSpacing.md,
+                            vertical: MananuSpacing.sm,
+                          ),
+                          decoration: BoxDecoration(
+                            color: scheme.surfaceContainerHighest,
+                            borderRadius: MananuSpacing.radiusSm,
+                          ),
+                          child: Text(
+                            '± ${today!.uncertainty!.toStringAsFixed(1)} pts',
+                            style: MananuType.caption.copyWith(
+                              color: scheme.onSurface.withValues(alpha: 0.7),
+                            ),
+                          ),
+                        ),
                       ),
                     ),
                   ),
@@ -188,6 +213,178 @@ class _TrendHeadline extends StatelessWidget {
                 ],
               ),
             ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Weight over the last thirty days: the rolling median as a line, each raw
+/// reading as a faint dot behind it. The trend is the signal; the dots show
+/// the noise honestly.
+class _WeightChartCard extends StatelessWidget {
+  const _WeightChartCard({required this.series});
+
+  final List<({DateTime at, double value})> series;
+
+  static const _days = 30;
+
+  /// Two readings on one day make a dot, not a trend.
+  static bool hasEnough(List<({DateTime at, double value})> series) {
+    final window = _window(series);
+    if (window.length < 3) return false;
+    return window.last.at.difference(window.first.at).inHours >= 24;
+  }
+
+  static List<({DateTime at, double value})> _window(
+    List<({DateTime at, double value})> series,
+  ) {
+    final cutoff = DateTime.now().subtract(const Duration(days: _days));
+    return series.where((p) => p.at.isAfter(cutoff)).toList();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final window = _window(series);
+    final t0 = window.first.at;
+    double x(DateTime t) => t.difference(t0).inMinutes / (24 * 60);
+
+    const smoother = TrendSmoother();
+    final raw = [for (final p in window) FlSpot(x(p.at), p.value)];
+    final median = [
+      for (final p in window)
+        FlSpot(x(p.at), smoother.rollingMedian(window, asOf: p.at) ?? p.value),
+    ];
+
+    var lo = window.map((p) => p.value).reduce((a, b) => a < b ? a : b);
+    var hi = window.map((p) => p.value).reduce((a, b) => a > b ? a : b);
+    // At least a two-kilogram band, so a flat week does not look like a cliff.
+    if (hi - lo < 2) {
+      final mid = (hi + lo) / 2;
+      lo = mid - 1;
+      hi = mid + 1;
+    }
+    lo = lo.floorToDouble() - 0.5;
+    hi = hi.ceilToDouble() + 0.5;
+    final yInterval = ((hi - lo) / 3).clamp(0.5, 20.0);
+    final maxX = x(window.last.at);
+    final muted = scheme.onSurface.withValues(alpha: 0.45);
+    final dateFormat = DateFormat('d MMM');
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(
+          MananuSpacing.xl,
+          MananuSpacing.xl,
+          MananuSpacing.xl,
+          MananuSpacing.lg,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'WEIGHT · $_days DAYS',
+              style: MananuType.label.copyWith(color: muted),
+            ),
+            const SizedBox(height: MananuSpacing.md),
+            SizedBox(
+              height: 150,
+              child: LineChart(
+                LineChartData(
+                  minX: 0,
+                  maxX: maxX <= 0 ? 1 : maxX,
+                  minY: lo,
+                  maxY: hi,
+                  clipData: const FlClipData.none(),
+                  gridData: FlGridData(
+                    drawVerticalLine: false,
+                    horizontalInterval: yInterval,
+                    getDrawingHorizontalLine: (_) =>
+                        FlLine(color: scheme.outline, strokeWidth: 1),
+                  ),
+                  borderData: FlBorderData(show: false),
+                  lineTouchData: const LineTouchData(enabled: false),
+                  titlesData: FlTitlesData(
+                    leftTitles: const AxisTitles(),
+                    topTitles: const AxisTitles(),
+                    rightTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        reservedSize: 40,
+                        interval: yInterval,
+                        getTitlesWidget: (v, meta) => Padding(
+                          padding: const EdgeInsets.only(left: 6),
+                          child: Text(
+                            v.toStringAsFixed(1),
+                            style: MananuType.caption.copyWith(
+                              fontSize: 11,
+                              color: muted,
+                              fontFeatures: const [
+                                FontFeature.tabularFigures(),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    bottomTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        reservedSize: 22,
+                        interval: maxX <= 0 ? 1 : maxX,
+                        getTitlesWidget: (v, meta) {
+                          final isEnd = (v - maxX).abs() < 1e-6;
+                          if (v != 0 && !isEnd) return const SizedBox.shrink();
+                          return Padding(
+                            padding: const EdgeInsets.only(top: 6),
+                            child: Text(
+                              dateFormat.format(
+                                t0.add(
+                                  Duration(minutes: (v * 24 * 60).round()),
+                                ),
+                              ),
+                              style: MananuType.caption
+                                  .copyWith(fontSize: 11, color: muted),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                  lineBarsData: [
+                    LineChartBarData(
+                      spots: raw,
+                      barWidth: 0,
+                      color: Colors.transparent,
+                      dotData: FlDotData(
+                        getDotPainter: (spot, pct, bar, i) =>
+                            FlDotCirclePainter(
+                          radius: 2.6,
+                          color: MananuColors.mist.withValues(alpha: 0.45),
+                          strokeWidth: 0,
+                        ),
+                      ),
+                    ),
+                    LineChartBarData(
+                      spots: median,
+                      barWidth: 2.5,
+                      color: MananuColors.brass,
+                      dotData: const FlDotData(show: false),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: MananuSpacing.sm),
+            Text(
+              'The line is the 7-day median. The dots are each reading — '
+              'that spread is normal.',
+              style: MananuType.caption.copyWith(
+                color: scheme.onSurface.withValues(alpha: 0.6),
+              ),
+            ),
           ],
         ),
       ),
@@ -277,12 +474,14 @@ class _NotesCard extends StatelessWidget {
                   color: MananuColors.brass,
                 ),
                 const SizedBox(width: MananuSpacing.sm),
-                Text(
-                  confidence == ReadingConfidence.weightOnly
-                      ? 'Weight only for this reading'
-                      : 'About this reading',
-                  style:
-                      MananuType.bodyStrong.copyWith(color: scheme.onSurface),
+                Expanded(
+                  child: Text(
+                    confidence == ReadingConfidence.weightOnly
+                        ? 'Weight only for this reading'
+                        : 'About this reading',
+                    style:
+                        MananuType.bodyStrong.copyWith(color: scheme.onSurface),
+                  ),
                 ),
               ],
             ),
@@ -444,11 +643,14 @@ class _ProtocolSheet extends StatelessWidget {
 }
 
 class _NoReadingsYet extends StatelessWidget {
-  const _NoReadingsYet();
+  const _NoReadingsYet({required this.driver});
+
+  final ScaleDriver driver;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final demo = driver;
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(MananuSpacing.xxl),
@@ -471,6 +673,23 @@ class _NoReadingsYet extends StatelessWidget {
                 color: scheme.onSurface.withValues(alpha: 0.6),
               ),
             ),
+            if (demo is SimulatedScaleDriver) ...[
+              const SizedBox(height: MananuSpacing.xl),
+              // The review account's route through the flow. Labelled as a
+              // demo so a reading from it can never pass as a measurement.
+              OutlinedButton.icon(
+                onPressed: () => demo.simulateReading(),
+                icon: const Icon(Icons.play_arrow_outlined),
+                label: const Text('Simulate stepping on'),
+              ),
+              const SizedBox(height: MananuSpacing.sm),
+              Text(
+                'Demo scale — no hardware connected',
+                style: MananuType.caption.copyWith(
+                  color: scheme.onSurface.withValues(alpha: 0.45),
+                ),
+              ),
+            ],
           ],
         ),
       ),

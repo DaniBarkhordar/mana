@@ -18,7 +18,7 @@ app/assets/lefu.config
 
 # Raw nutrition datasets downloaded for scripts/build_food_db.py. Large, and
 # each carries its own licence; only the built core.sqlite is shipped.
-data/
+/data/
 
 # Supabase local state
 supabase/.temp/

@@ -1,0 +1,9 @@
+targets:
+  $default:
+    builders:
+      drift_dev:
+        options:
+          # ISO-8601 text rather than unix seconds: millisecond precision, and the
+          # same representation Postgres hands back, so last-write-wins compares
+          # like with like.
+          store_date_time_values_as_text: true

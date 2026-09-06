@@ -6,7 +6,7 @@
 |---|---|---|
 | App | **Flutter** | The factory maintains an **official Flutter plugin** (`LefuHengqi/pp_bluetooth_kit_flutter`). There is no React Native binding. This reverses my earlier advice: choosing Flutter means the riskiest part of the project — bridging a closed vendor SDK natively, twice, and maintaining it — is work the vendor already does. |
 | Backend | **Supabase**, London or Frankfurt | Your data is relational (user → measurements over time → components → foods) and Postgres handles that where a document store fights you. Row Level Security gives per-user isolation of health data. Edge Functions keep the AI key server-side. ~$25/month until you are real. |
-| Local store | **Drift (SQLite)** | Local-first. A food diary that needs signal is a food diary people abandon on day three. |
+| Local store | **Drift (SQLite)** | Local-first. A food diary that needs signal is a food diary people abandon on day three. Built: `app/lib/core/data/`. |
 | Vision | **A Flash-Lite class model via an Edge Function** | See below — this is the cost decision. |
 | Subscriptions | **RevenueCat** | StoreKit and Play Billing are miserable to implement twice. Free until you are past roughly $2.5k/month. |
 | Nutrition data | **CoFID + USDA offline, Open Food Facts online** | The only two datasets whose licences permit shipping inside the app binary. See §5. |
@@ -47,12 +47,23 @@ python3 scripts/verify_core.py
 ```bash
 supabase init
 supabase link --project-ref <ref>          # create the project in London (eu-west-2)
-supabase db push                            # applies migrations/0001_init.sql, 0002_vision.sql
+supabase db push                            # applies migrations/0001, 0002, 0003
 
 supabase secrets set GEMINI_API_KEY=...     # or ANTHROPIC_API_KEY
 supabase secrets set VISION_MODEL=gemini-2.5-flash-lite
 supabase functions deploy identify-food
 ```
+
+Then, in the dashboard, Authentication → Providers → **enable anonymous sign-ins**. A fresh install gets an anonymous user on first contact so the diary is backed up from day one; Phase 4 links that user to Apple, Google or an email address.
+
+Build the app with the project's URL and publishable key (a legacy anon key works in the same slot; never a service-role key):
+
+```bash
+flutter run --dart-define=SUPABASE_URL=https://<ref>.supabase.co \
+            --dart-define=SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
+```
+
+Without them the app runs local-only and Settings → Backup says so.
 
 Region matters legally, not just for latency — see `04-compliance-uk.md` §4.
 

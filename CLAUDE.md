@@ -46,7 +46,8 @@ These are product and legal commitments, not preferences. Do not relax them with
 app/lib/core/bia/          Published BIA equations + the honesty layer over them
 app/lib/core/nutrition/    Per-100g model, running-tare weighing, yield factors
 app/lib/core/scale/        Driver interface, byte parsers, vendor adapter
-app/lib/core/data/         Riverpod wiring
+app/lib/core/data/         Riverpod wiring, Drift schema, repositories, sync
+design/                    The screens on a Claude Design canvas; generated from tokens.dart
 app/lib/features/          Screens
 app/lib/theme/tokens.dart  Design system — read before writing any UI
 supabase/migrations/       Schema, RLS, consent, real deletion
@@ -62,7 +63,8 @@ docs/                      Factory, name, claims, compliance, runbook
 - **Dart:** `flutter_lints` plus the extra rules in `analysis_options.yaml`. Trailing commas, `const` where possible, explicit return types.
 - **State:** Riverpod. The app is mostly streams — a live weight, a day's log — and `StreamProvider` maps onto that.
 - **Comments explain *why*.** The equations and byte offsets are meaningless without their source; every one names the paper or the capture it came from. Do not strip these.
-- **Tests:** anything numeric gets a test with the expected value computed by hand from the published coefficients. `flutter test` must pass before any commit.
+- **Tests:** anything numeric gets a test with the expected value computed by hand from the published coefficients. Repositories and sync are tested on an in-memory database. `flutter test` must pass before any commit.
+- **Schema changes:** edit `app/lib/core/data/db/tables.dart` and the matching `supabase/migrations/` file together, then `dart run build_runner build --delete-conflicting-outputs`. Column names are identical on both sides; keep them so.
 - **UI:** all colour and type from `theme/tokens.dart`. `MananuColors.measured` and `.estimated` are reserved for provenance and used for nothing else.
 - **Local-first.** Every log works offline and syncs later. A food diary that needs signal is a food diary people abandon on day three.
 

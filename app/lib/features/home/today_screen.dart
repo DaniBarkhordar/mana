@@ -20,7 +20,7 @@ class TodayScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final totals = ref.watch(todaysTotalsProvider);
     final target = ref.watch(dailyTargetProvider);
-    final meals = ref.watch(todaysMealsProvider);
+    final meals = ref.watch(todaysMealsProvider).valueOrNull ?? const [];
     final trend = ref.watch(bodyFatTrendProvider);
     final latest = ref.watch(latestBodyMeasurementProvider);
 
@@ -47,7 +47,10 @@ class TodayScreen extends ConsumerWidget {
                       children: [
                         for (var i = 0; i < meals.length; i++) ...[
                           if (i > 0) const Divider(height: 1),
-                          _MealRow(meal: meals[i]),
+                          _MealRow(
+                            meal: meals[i],
+                            onDelete: () => _delete(ref, meals[i]),
+                          ),
                         ],
                       ],
                     ),
@@ -79,13 +82,19 @@ class TodayScreen extends ConsumerWidget {
       ),
     );
   }
+
+  /// Tombstones the meal locally; the deletion syncs like any other change.
+  Future<void> _delete(WidgetRef ref, LoggedMeal meal) async {
+    final services = await ref.read(appServicesProvider.future);
+    await services.meals.deleteMeal(meal.id);
+  }
 }
 
 class _EnergyCard extends StatelessWidget {
   const _EnergyCard({required this.totals, required this.target});
 
   final MealTotals totals;
-  final DailyTarget? target;
+  final EnergyTarget? target;
 
   @override
   Widget build(BuildContext context) {
@@ -117,16 +126,20 @@ class _EnergyCard extends StatelessWidget {
                     color: scheme.onSurface.withValues(alpha: 0.6),
                   ),
                 ),
-                const Spacer(),
+                const SizedBox(width: MananuSpacing.md),
                 if (remaining != null)
-                  Text(
-                    remaining >= 0
-                        ? '$remaining left'
-                        : '${remaining.abs()} over',
-                    style: MananuType.bodyStrong.copyWith(
-                      color: remaining >= 0
-                          ? scheme.onSurface.withValues(alpha: 0.7)
-                          : MananuColors.warning,
+                  Expanded(
+                    child: Text(
+                      remaining >= 0
+                          ? '$remaining left'
+                          : '${remaining.abs()} over',
+                      textAlign: TextAlign.end,
+                      overflow: TextOverflow.ellipsis,
+                      style: MananuType.bodyStrong.copyWith(
+                        color: remaining >= 0
+                            ? scheme.onSurface.withValues(alpha: 0.7)
+                            : MananuColors.warning,
+                      ),
                     ),
                   ),
               ],
@@ -200,7 +213,7 @@ class _MacroCard extends StatelessWidget {
   const _MacroCard({required this.totals, required this.target});
 
   final MealTotals totals;
-  final DailyTarget? target;
+  final EnergyTarget? target;
 
   @override
   Widget build(BuildContext context) {
@@ -302,9 +315,10 @@ class _Macro extends StatelessWidget {
 }
 
 class _MealRow extends StatelessWidget {
-  const _MealRow({required this.meal});
+  const _MealRow({required this.meal, required this.onDelete});
 
   final LoggedMeal meal;
+  final VoidCallback onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -312,38 +326,62 @@ class _MealRow extends StatelessWidget {
     final totals = meal.totals;
     final names = meal.components.map((c) => c.food.name).join(', ');
 
-    return ListTile(
-      contentPadding: const EdgeInsets.symmetric(
-        horizontal: MananuSpacing.lg,
-        vertical: MananuSpacing.sm,
+    return Dismissible(
+      key: ValueKey(meal.id),
+      direction: DismissDirection.endToStart,
+      onDismissed: (_) => onDelete(),
+      background: Container(
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.only(right: MananuSpacing.xl),
+        color: MananuColors.danger.withValues(alpha: 0.12),
+        child: const Icon(Icons.delete_outline, color: MananuColors.danger),
       ),
-      title: Text(
-        meal.slot[0].toUpperCase() + meal.slot.substring(1),
-        style: MananuType.bodyStrong,
-      ),
-      subtitle: Padding(
-        padding: const EdgeInsets.only(top: 2),
-        child: Text(
-          names,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: MananuType.caption.copyWith(
-            color: scheme.onSurface.withValues(alpha: 0.6),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: MananuSpacing.lg,
+          vertical: MananuSpacing.sm,
+        ),
+        title: Row(
+          children: [
+            Text(meal.slot.label, style: MananuType.bodyStrong),
+            if (!meal.isSynced) ...[
+              const SizedBox(width: 6),
+              // Quietly: the meal is safe on this phone, not yet backed up.
+              Tooltip(
+                message: 'Saved on this phone, not yet backed up',
+                child: Icon(
+                  Icons.cloud_off_outlined,
+                  size: 14,
+                  color: scheme.onSurface.withValues(alpha: 0.4),
+                ),
+              ),
+            ],
+          ],
+        ),
+        subtitle: Padding(
+          padding: const EdgeInsets.only(top: 2),
+          child: Text(
+            names,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: MananuType.caption.copyWith(
+              color: scheme.onSurface.withValues(alpha: 0.6),
+            ),
           ),
         ),
-      ),
-      trailing: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          Text('${totals.kcal.round()} kcal', style: MananuType.number),
-          const SizedBox(height: 2),
-          ProvenanceBadge(
-            weighed: totals.weighedFraction >= 0.6,
-            label: totals.confidenceLabel,
-            dense: true,
-          ),
-        ],
+        trailing: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Text('${totals.kcal.round()} kcal', style: MananuType.number),
+            const SizedBox(height: 2),
+            ProvenanceBadge(
+              weighed: totals.weighedFraction >= 0.6,
+              label: totals.confidenceLabel,
+              dense: true,
+            ),
+          ],
+        ),
       ),
     );
   }

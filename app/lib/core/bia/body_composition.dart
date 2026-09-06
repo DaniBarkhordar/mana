@@ -93,6 +93,7 @@ class BodyCompositionResult {
     required this.metrics,
     required this.notes,
     this.impedanceOhm,
+    this.context = const MeasurementContext(),
   });
 
   final DateTime takenAt;
@@ -103,6 +104,10 @@ class BodyCompositionResult {
 
   /// Human-readable reasons the confidence is what it is. Shown verbatim.
   final List<String> notes;
+
+  /// The conditions this was evaluated under. Carried with the result so
+  /// storage cannot be handed a result and a context that disagree.
+  final MeasurementContext context;
 
   Metric? metric(String key) {
     for (final m in metrics) {
@@ -216,6 +221,7 @@ class BodyCompositionEngine {
         confidence: ReadingConfidence.weightOnly,
         metrics: metrics,
         notes: notes,
+        context: context,
       );
     }
 
@@ -392,6 +398,7 @@ class BodyCompositionEngine {
       confidence: confidence,
       metrics: metrics,
       notes: notes,
+      context: context,
     );
   }
 }
