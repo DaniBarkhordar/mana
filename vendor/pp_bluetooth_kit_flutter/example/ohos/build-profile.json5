@@ -1,0 +1,65 @@
+{
+  "app": {
+    "signingConfigs": [
+      {
+        "name": "default",
+        "type": "HarmonyOS",
+        "material": {
+          "certpath": "/Users/lefu/.ohos/config/default_ohos_aUt3dzm5UhuRqDI-me6Sal0sS7dCBTmq8w7D9jLqIB4=.cer",
+          "storePassword": "0000001B7AB9DB1062538F75FB7D877D947035CE93069E1B8149C1B82E63D8A2855D7C7758781E65DC5DF1",
+          "keyAlias": "debugKey",
+          "keyPassword": "0000001B80E35D3B62A79EB90C640AE6F2C577543007930EDC3BD42A87A61012E85510B23C636BA2EA597C",
+          "profile": "/Users/lefu/.ohos/config/default_ohos_aUt3dzm5UhuRqDI-me6Sal0sS7dCBTmq8w7D9jLqIB4=.p7b",
+          "signAlg": "SHA256withECDSA",
+          "storeFile": "/Users/lefu/.ohos/config/default_ohos_aUt3dzm5UhuRqDI-me6Sal0sS7dCBTmq8w7D9jLqIB4=.p12"
+        }
+      }
+    ],
+    "products": [
+      {
+        "name": "default",
+        "signingConfig": "default",
+        "compatibleSdkVersion": "5.0.0(12)",
+        "runtimeOS": "HarmonyOS"
+      }
+    ]
+  },
+  "modules": [
+    {
+      "name": "entry",
+      "srcPath": "./entry",
+      "targets": [
+        {
+          "name": "default",
+          "applyToProducts": [
+            "default"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "path_provider_ohos",
+      "srcPath": "../../../../../.pub-cache/git/flutter_packages-35fb467533e174411a117b2a030c15d2a3a9687c/packages/path_provider/path_provider_ohos/ohos",
+      "targets": [
+        {
+          "name": "default",
+          "applyToProducts": [
+            "default"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "pp_bluetooth_kit_flutter",
+      "srcPath": "../../ohos",
+      "targets": [
+        {
+          "name": "default",
+          "applyToProducts": [
+            "default"
+          ]
+        }
+      ]
+    }
+  ]
+}

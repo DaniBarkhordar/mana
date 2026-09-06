@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 160" width="720" height="160" role="img" aria-label="mananu">
+  <!-- Mark: three stacked strokes of equal mass — the three syllables, and a
+       balance at rest. The middle stroke is brass: the measured one. -->
+  <g transform="translate(40 40)">
+    <rect x="0" y="0"  width="84" height="18" rx="9" fill="#0D1012"/>
+    <rect x="0" y="31" width="84" height="18" rx="9" fill="#C8912F"/>
+    <rect x="0" y="62" width="84" height="18" rx="9" fill="#0D1012"/>
+  </g>
+  <text x="160" y="106"
+        font-family="Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif"
+        font-size="74" font-weight="600" letter-spacing="-1.5" fill="#0D1012">mananu</text>
+</svg>

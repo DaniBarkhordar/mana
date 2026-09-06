@@ -1,0 +1,120 @@
+apply plugin: 'com.android.library'
+apply plugin: 'kotlin-android'
+apply plugin: 'maven-publish'
+
+def releaseTime() {
+//GMT+8代表北京时间
+    return new Date().format("yyyyMMdd", TimeZone.getTimeZone("GMT+8"))
+}
+
+def fileName
+
+def GROUP_ID = "com.lefu.ppbasekit"
+def ARTIFACT_ID = "ppbasekit"
+//def LIB_VERSION = "4.0.1.10"
+//def LIB_VERSION_CODE = "105"
+
+android {
+    namespace 'com.lefu.ppbasekit'
+    compileSdkVersion 31
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    kotlinOptions {
+        jvmTarget = '17'
+    }
+
+    buildFeatures {
+        buildConfig = true
+    }
+
+    defaultConfig {
+        minSdkVersion 18
+        versionCode LIB_VERSION_CODE as int
+        versionName LIB_VERSION
+
+        testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
+
+        // 设置aar文件名包含版本号
+        archivesBaseName = "${ARTIFACT_ID}-${LIB_VERSION}"
+    }
+    buildTypes {
+        debug {
+            debuggable false
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+        release {
+            debuggable false
+            minifyEnabled true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+
+}
+
+dependencies {
+    api fileTree(include: ['*.jar', '*.aar'], dir: 'libs')
+//    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3'
+//    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3'
+
+}
+
+// 配置发布
+afterEvaluate {
+    publishing {
+        publications {
+            release(MavenPublication) {
+                // 只发布aar文件，不包含.module和sources
+                artifact("$buildDir/outputs/aar/${ARTIFACT_ID}-${LIB_VERSION}-release.aar")
+
+                // 自定义你的包信息
+                groupId = GROUP_ID
+                artifactId = ARTIFACT_ID
+                version = LIB_VERSION
+            }
+        }
+
+        repositories {
+            maven {
+                // 本地仓库路径（默认生成在模块的build/repo目录）
+//                url = layout.buildDirectory.dir('repo')
+
+                // 指定绝对路径到项目根目录下的maven文件夹
+                url = uri("${rootProject.projectDir}/maven")
+            }
+        }
+    }
+    
+    // 确保发布任务依赖于构建任务
+    tasks.withType(PublishToMavenRepository) {
+        dependsOn assembleRelease
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

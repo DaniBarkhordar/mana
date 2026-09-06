@@ -1,0 +1,52 @@
+// Top-level build file where you can add configuration options common to all sub-projects/modules.
+
+buildscript {
+    ext {
+        kotlin_version = '1.9.22'
+    }
+    repositories {
+        maven { url "https://raw.githubusercontent.com/LefuHengqi/PPBaseKit-Android/main" }
+
+        maven { url 'https://maven.aliyun.com/mvn/search' }
+        maven { url 'https://maven.aliyun.com/repository/public/' }
+        maven { url 'https://maven.aliyun.com/repository/google/' }
+        maven { url 'https://maven.aliyun.com/repository/gradle-plugin/' }
+        maven { url 'https://maven.aliyun.com/repository/public/' }
+
+        maven { url "https://jitpack.io" }
+
+        google()
+        mavenCentral()
+
+
+    }
+    dependencies {
+//        classpath 'com.android.tools.build:gradle:3.3.1'
+        classpath 'com.android.tools.build:gradle:8.1.4'
+        classpath 'org.greenrobot:greendao-gradle-plugin:3.3.1'
+        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
+    }
+}
+
+allprojects {
+    repositories {
+        // 优先使用项目根目录下的本地 maven 仓库，确保解析到我们刚发布的 AAR 与 POM
+        maven { url uri("${rootProject.projectDir}/maven") }
+        /******PPBluetoothKit/PPCalculateKit SDK**********/
+        maven { url "https://raw.githubusercontent.com/LefuHengqi/PPBaseKit-Android/main" }
+
+        maven { url 'https://maven.aliyun.com/mvn/search' }
+        maven { url 'https://maven.aliyun.com/repository/public/' }
+        maven { url 'https://maven.aliyun.com/repository/google/' }
+        maven { url 'https://maven.aliyun.com/repository/gradle-plugin/' }
+        maven { url 'https://maven.aliyun.com/repository/public/' }
+
+        maven { url "https://jitpack.io" }
+        google()
+        mavenCentral()
+    }
+}
+
+task clean(type: Delete) {
+    delete rootProject.buildDir
+}

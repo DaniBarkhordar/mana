@@ -1,0 +1,215 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    package="com.lefu.ppblutoothkit">
+    <!-- 蓝牙相关权限 -->
+    <uses-permission
+        android:name="android.permission.BLUETOOTH"
+        android:maxSdkVersion="30" />
+    <uses-permission
+        android:name="android.permission.BLUETOOTH_ADMIN"
+        android:maxSdkVersion="30" />
+    <uses-permission
+        android:name="android.permission.BLUETOOTH_SCAN"
+        android:usesPermissionFlags="neverForLocation"
+        tools:targetApi="s" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADVERTISE" />
+
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+
+    <!-- 存储相关权限 -->
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+
+    <application
+        android:name="com.lefu.ppblutoothkit.PPApplication"
+        android:allowBackup="false"
+        android:extractNativeLibs="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:networkSecurityConfig="@xml/network_security_config"
+        android:requestLegacyExternalStorage="true"
+        android:supportsRtl="true"
+        android:theme="@style/AppTheme">
+        <activity
+            android:name=".device.SetHostActivity"
+            android:screenOrientation="portrait"
+            android:theme="@style/AppTheme.Immersive" />
+        <activity
+            android:name="com.lefu.ppblutoothkit.MainActivity"
+            android:exported="true"
+            android:screenOrientation="portrait"
+            android:theme="@style/AppTheme.Immersive">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+        <activity
+            android:name="com.lefu.ppblutoothkit.calculate.BodyDataDetailActivity"
+            android:screenOrientation="portrait"
+            android:theme="@style/AppTheme.Immersive" />
+        <activity
+            android:name="com.lefu.ppblutoothkit.calculate.BodyDataStateActivity"
+            android:screenOrientation="portrait"
+            android:theme="@style/AppTheme.Immersive" />
+        <activity
+            android:name="com.lefu.ppblutoothkit.devicelist.ScanDeviceListActivity"
+            android:screenOrientation="portrait"
+            android:theme="@style/AppTheme.Immersive" />
+        <activity
+            android:name="com.lefu.ppblutoothkit.UserinfoActivity"
+            android:screenOrientation="portrait"
+            android:theme="@style/AppTheme.Immersive" /> <!-- Calculate -->
+        <activity
+            android:name="com.lefu.ppblutoothkit.calculate.CalculateManagerActivity"
+            android:screenOrientation="portrait"
+            android:theme="@style/AppTheme.Immersive" />
+        <activity
+            android:name="com.lefu.ppblutoothkit.calculate.Calculate4DCActivitiy"
+            android:screenOrientation="portrait"
+            android:theme="@style/AppTheme.Immersive" />
+        <activity
+            android:name="com.lefu.ppblutoothkit.calculate.Calculate4ACActivitiy"
+            android:screenOrientation="portrait"
+            android:theme="@style/AppTheme.Immersive" />
+        <activity
+            android:name="com.lefu.ppblutoothkit.calculate.Calculate8Activitiy"
+            android:screenOrientation="portrait"
+            android:theme="@style/AppTheme.Immersive" />
+        <activity
+            android:name="com.lefu.ppblutoothkit.calculate.Calculate4AC2ChannelActivitiy"
+            android:screenOrientation="portrait"
+            android:theme="@style/AppTheme.Immersive" />
+        <!--Torre-->
+        <activity
+            android:name="com.lefu.ppblutoothkit.device.torre.PeripheralTorreConfigWifiActivity"
+            android:screenOrientation="portrait"
+            android:theme="@style/AppTheme.Immersive" />
+        <activity
+            android:name="com.lefu.ppblutoothkit.device.torre.PeripheralTorreSearchWifiListActivity"
+            android:screenOrientation="portrait"
+            android:theme="@style/AppTheme.Immersive" />
+        <activity
+            android:name="com.lefu.ppblutoothkit.device.PeripheralTorreActivity"
+            android:screenOrientation="portrait"
+            android:theme="@style/AppTheme.Immersive" />
+        <activity
+            android:name="com.lefu.ppblutoothkit.device.PeripheralDorreActivity"
+            android:screenOrientation="portrait"
+            android:theme="@style/AppTheme.Immersive" />
+        <activity
+            android:name="com.lefu.ppblutoothkit.device.PeripheralBorreActivity"
+            android:screenOrientation="portrait"
+            android:theme="@style/AppTheme.Immersive" />
+        <activity
+            android:name="com.lefu.ppblutoothkit.device.PeripheralForreActivity"
+            android:screenOrientation="portrait"
+            android:theme="@style/AppTheme.Immersive" />
+        <!--Apple-->
+        <activity
+            android:name="com.lefu.ppblutoothkit.device.PeripheralAppleActivity"
+            android:screenOrientation="portrait"
+            android:theme="@style/AppTheme.Immersive" />
+        <!--Banana-->
+        <activity
+            android:name="com.lefu.ppblutoothkit.device.PeripheralBananaActivity"
+            android:screenOrientation="portrait"
+            android:theme="@style/AppTheme.Immersive" />
+        <!--Coconut-->
+        <activity
+            android:name="com.lefu.ppblutoothkit.device.PeripheralCoconutActivity"
+            android:screenOrientation="portrait"
+            android:theme="@style/AppTheme.Immersive" />
+        <!--Dutian-->
+        <activity
+            android:name="com.lefu.ppblutoothkit.device.PeripheralDurianActivity"
+            android:screenOrientation="portrait"
+            android:theme="@style/AppTheme.Immersive" />
+        <!--Egg-->
+        <activity
+            android:name="com.lefu.ppblutoothkit.device.PeripheralEggActivity"
+            android:screenOrientation="portrait"
+            android:theme="@style/AppTheme.Immersive" />
+        <!--Fish-->
+        <activity
+            android:name="com.lefu.ppblutoothkit.device.PeripheralFishActivity"
+            android:screenOrientation="portrait"
+            android:theme="@style/AppTheme.Immersive" />
+        <!--Grapes-->
+        <activity
+            android:name="com.lefu.ppblutoothkit.device.PeripheralGrapesActivity"
+            android:screenOrientation="portrait"
+            android:theme="@style/AppTheme.Immersive" />
+        <!--Hamburger-->
+        <activity
+            android:name="com.lefu.ppblutoothkit.device.PeripheralHamburgerActivity"
+            android:screenOrientation="portrait"
+            android:theme="@style/AppTheme.Immersive" />
+        <!--Ice-->
+        <activity
+            android:name="com.lefu.ppblutoothkit.device.PeripheralIceActivity"
+            android:screenOrientation="portrait"
+            android:theme="@style/AppTheme.Immersive" />
+        <!--Jambul-->
+        <activity
+            android:name="com.lefu.ppblutoothkit.device.PeripheralJambulActivity"
+            android:screenOrientation="portrait"
+            android:theme="@style/AppTheme.Immersive" />
+        <activity
+            android:name="com.lefu.ppblutoothkit.device.PeripheralLorreActivity"
+            android:screenOrientation="portrait"
+            android:theme="@style/AppTheme.Immersive" />
+
+        <activity
+            android:name="com.lefu.ppblutoothkit.device.PeripheralMorreActivity"
+            android:screenOrientation="portrait"
+            android:theme="@style/AppTheme.Immersive" />
+
+        <activity
+            android:name="com.lefu.ppblutoothkit.device.PeripheralKorreActivity"
+            android:screenOrientation="portrait"
+            android:theme="@style/AppTheme.Immersive" />
+
+        <activity
+            android:name=".device.apple.BleConfigWifiActivity"
+            android:screenOrientation="portrait"
+            android:theme="@style/AppTheme.Immersive" />
+        <activity
+            android:name=".device.apple.WifiBodyDataDetailActivity"
+            android:screenOrientation="portrait"
+            android:theme="@style/AppTheme.Immersive" />
+        <activity
+            android:name=".device.apple.WifiDataListActivity"
+            android:screenOrientation="portrait"
+            android:theme="@style/AppTheme.Immersive" />
+
+        <activity
+            android:name=".log.LogActivity"
+            android:screenOrientation="portrait"
+            android:theme="@style/AppTheme.Immersive" />
+
+        <activity
+            android:name=".filter.FilterNameActivity"
+            android:screenOrientation="portrait"
+            android:theme="@style/AppTheme.Immersive" />
+
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+    </application>
+
+</manifest>

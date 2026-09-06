@@ -1,0 +1,553 @@
+<title>Mananu Launch Brief</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600;700&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap">
+
+<style>
+  /* ---- tokens: light is the base, both dark paths redefine only tokens ---- */
+  :root {
+    --ground:      #FAF9F5;
+    --surface:     #FFFFFF;
+    --surface-2:   #F3F1EA;
+    --ink:         #0D1012;
+    --ink-2:       #3B3A35;   /* warm neutral, biased toward the brass */
+    --ink-3:       #78746A;
+    --line:        #E4E1D8;
+    --line-strong: #CFC9BA;
+    --brass:       #A8761F;
+    --brass-soft:  #F3E9D4;
+    --good:        #1E7A5F;
+    --good-soft:   #E1F0EA;
+    --alert:       #A8331F;
+    --alert-soft:  #F7E5E1;
+    --warn:        #8A5A12;
+    --warn-soft:   #F7EEDC;
+    --shadow:      0 1px 2px rgba(13,16,18,.05);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground:      #0A0C0D;
+      --surface:     #14171A;
+      --surface-2:   #1C2023;
+      --ink:         #F2F1ED;
+      --ink-2:       #C3C0B8;
+      --ink-3:       #8B8880;
+      --line:        #272C30;
+      --line-strong: #39403F;
+      --brass:       #E0A93F;
+      --brass-soft:  #2A2318;
+      --good:        #4FBF98;
+      --good-soft:   #14261F;
+      --alert:       #E4796A;
+      --alert-soft:  #2A1714;
+      --warn:        #D9A441;
+      --warn-soft:   #2A2214;
+      --shadow:      0 1px 2px rgba(0,0,0,.4);
+    }
+  }
+  :root[data-theme="dark"] {
+    --ground:      #0A0C0D;
+    --surface:     #14171A;
+    --surface-2:   #1C2023;
+    --ink:         #F2F1ED;
+    --ink-2:       #C3C0B8;
+    --ink-3:       #8B8880;
+    --line:        #272C30;
+    --line-strong: #39403F;
+    --brass:       #E0A93F;
+    --brass-soft:  #2A2318;
+    --good:        #4FBF98;
+    --good-soft:   #14261F;
+    --alert:       #E4796A;
+    --alert-soft:  #2A1714;
+    --warn:        #D9A441;
+    --warn-soft:   #2A2214;
+    --shadow:      0 1px 2px rgba(0,0,0,.4);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--ground);
+    color: var(--ink);
+    font-family: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-size: 16.5px;
+    line-height: 1.62;
+    margin: 0;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap { max-width: 860px; margin: 0 auto; padding: 0 24px 96px; }
+
+  /* ---- masthead ---- */
+  .masthead {
+    border-bottom: 2px solid var(--ink);
+    padding: 56px 0 22px;
+    margin-bottom: 40px;
+    display: flex; align-items: flex-end; gap: 20px; flex-wrap: wrap;
+  }
+  .mark { width: 46px; height: 46px; flex: none; }
+  .masthead h1 {
+    font-family: "IBM Plex Sans Condensed", "IBM Plex Sans", sans-serif;
+    font-weight: 700; font-size: clamp(2.1rem, 5.5vw, 3.1rem);
+    line-height: .96; letter-spacing: -.015em; margin: 0; flex: 1 1 260px;
+    text-wrap: balance;
+  }
+  .masthead .stamp {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: .72rem; letter-spacing: .09em; text-transform: uppercase;
+    color: var(--ink-3); text-align: right; line-height: 1.7;
+  }
+  .standfirst {
+    font-size: 1.16rem; color: var(--ink-2); max-width: 62ch;
+    margin: 0 0 40px;
+  }
+  .standfirst strong { color: var(--ink); font-weight: 600; }
+
+  /* ---- decision board ---- */
+  .board { display: grid; gap: 12px; margin-bottom: 56px; }
+  @media (min-width: 640px) { .board { grid-template-columns: 1fr 1fr; } }
+
+  .card {
+    background: var(--surface); border: 1px solid var(--line);
+    border-radius: 10px; padding: 18px 20px; box-shadow: var(--shadow);
+    display: flex; flex-direction: column; gap: 7px;
+  }
+  .card .eyebrow {
+    font-family: "IBM Plex Mono", monospace; font-size: .68rem;
+    letter-spacing: .11em; text-transform: uppercase; color: var(--ink-3);
+  }
+  .card .verdict {
+    font-family: "IBM Plex Sans Condensed", sans-serif; font-weight: 700;
+    font-size: 1.42rem; line-height: 1.1; letter-spacing: -.01em;
+  }
+  .card p { margin: 0; font-size: .93rem; color: var(--ink-2); }
+
+  .chip {
+    display: inline-flex; align-items: center; gap: 6px; align-self: flex-start;
+    font-family: "IBM Plex Mono", monospace; font-size: .66rem;
+    letter-spacing: .09em; text-transform: uppercase; font-weight: 500;
+    padding: 3px 8px; border-radius: 4px;
+  }
+  .chip::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .chip.settled { color: var(--good);  background: var(--good-soft);  }
+  .chip.action  { color: var(--warn);  background: var(--warn-soft);  }
+  .chip.verify  { color: var(--alert); background: var(--alert-soft); }
+
+  /* ---- sections ---- */
+  section { margin-bottom: 56px; scroll-margin-top: 24px; }
+  h2 {
+    font-family: "IBM Plex Sans Condensed", sans-serif; font-weight: 700;
+    font-size: 1.68rem; letter-spacing: -.012em; line-height: 1.15;
+    margin: 0 0 6px; padding-top: 20px; border-top: 1px solid var(--line-strong);
+    text-wrap: balance;
+  }
+  h2 .num {
+    font-family: "IBM Plex Mono", monospace; font-size: .78rem; font-weight: 500;
+    color: var(--brass); letter-spacing: .08em; display: block; margin-bottom: 8px;
+  }
+  h3 {
+    font-family: "IBM Plex Sans Condensed", sans-serif; font-weight: 600;
+    font-size: 1.12rem; margin: 30px 0 6px; letter-spacing: -.005em;
+  }
+  p { margin: 0 0 14px; max-width: 66ch; }
+  a { color: var(--brass); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+  a:focus-visible, summary:focus-visible {
+    outline: 2px solid var(--brass); outline-offset: 3px; border-radius: 3px;
+  }
+  strong { font-weight: 600; }
+  code {
+    font-family: "IBM Plex Mono", monospace; font-size: .86em;
+    background: var(--surface-2); padding: 1px 5px; border-radius: 4px;
+    border: 1px solid var(--line);
+  }
+
+  ul { margin: 0 0 14px; padding-left: 20px; max-width: 66ch; }
+  li { margin-bottom: 7px; }
+  li::marker { color: var(--brass); }
+
+  /* ---- callout ---- */
+  .callout {
+    border-left: 3px solid var(--alert); background: var(--alert-soft);
+    padding: 16px 20px; border-radius: 0 8px 8px 0; margin: 0 0 20px;
+  }
+  .callout.good { border-left-color: var(--good); background: var(--good-soft); }
+  .callout p:last-child { margin-bottom: 0; }
+  .callout .label {
+    font-family: "IBM Plex Mono", monospace; font-size: .68rem;
+    letter-spacing: .1em; text-transform: uppercase; color: var(--alert);
+    display: block; margin-bottom: 5px; font-weight: 500;
+  }
+  .callout.good .label { color: var(--good); }
+
+  /* ---- tables ---- */
+  .scroller { overflow-x: auto; margin: 0 0 20px; -webkit-overflow-scrolling: touch; }
+  table {
+    width: 100%; border-collapse: collapse; font-size: .92rem;
+    font-variant-numeric: tabular-nums; min-width: 460px;
+  }
+  th {
+    text-align: left; font-family: "IBM Plex Mono", monospace;
+    font-size: .68rem; letter-spacing: .09em; text-transform: uppercase;
+    color: var(--ink-3); font-weight: 500;
+    border-bottom: 1px solid var(--line-strong); padding: 0 14px 8px 0;
+  }
+  td { padding: 10px 14px 10px 0; border-bottom: 1px solid var(--line); vertical-align: top; color: var(--ink-2); }
+  td:first-child { color: var(--ink); font-weight: 500; }
+  .yes { color: var(--good); font-weight: 600; }
+  .no  { color: var(--alert); font-weight: 600; }
+
+  /* ---- error-budget bar ---- */
+  .budget { margin: 4px 0 22px; }
+  .budget-bar {
+    display: flex; height: 42px; border-radius: 8px; overflow: hidden;
+    border: 1px solid var(--line-strong);
+  }
+  .budget-bar span {
+    display: flex; align-items: center; justify-content: center;
+    font-family: "IBM Plex Mono", monospace; font-size: .7rem;
+    letter-spacing: .05em; font-weight: 500; color: #fff; text-align: center;
+    padding: 0 4px;
+  }
+  .seg-id  { background: #6E6A60; flex: 20; }
+  .seg-qty { background: var(--good); flex: 30; }
+  .seg-fat { background: #A8331F; flex: 50; }
+  .budget-key {
+    display: flex; gap: 18px; flex-wrap: wrap; margin-top: 10px;
+    font-size: .84rem; color: var(--ink-2);
+  }
+  .budget-key b { font-weight: 600; color: var(--ink); }
+
+  /* ---- checklist ---- */
+  .checklist { list-style: none; padding: 0; max-width: none; }
+  .checklist li {
+    display: flex; gap: 12px; align-items: baseline;
+    padding: 11px 0; border-bottom: 1px solid var(--line); margin: 0;
+  }
+  .checklist .when {
+    font-family: "IBM Plex Mono", monospace; font-size: .68rem;
+    letter-spacing: .08em; text-transform: uppercase; color: var(--brass);
+    flex: none; width: 78px; padding-top: 2px;
+  }
+  .checklist .what { flex: 1; }
+  .checklist .what small { display: block; color: var(--ink-3); font-size: .86rem; }
+
+  details {
+    border: 1px solid var(--line); border-radius: 8px; padding: 0 18px;
+    background: var(--surface); margin-bottom: 12px;
+  }
+  summary {
+    cursor: pointer; padding: 14px 0; font-weight: 600;
+    font-family: "IBM Plex Sans Condensed", sans-serif; font-size: 1.02rem;
+  }
+  details[open] { padding-bottom: 6px; }
+  details p, details ul { font-size: .93rem; }
+
+  footer {
+    border-top: 2px solid var(--ink); padding-top: 20px; margin-top: 64px;
+    font-size: .87rem; color: var(--ink-3); max-width: 66ch;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+  }
+</style>
+
+<div class="wrap">
+
+  <header class="masthead">
+    <svg class="mark" viewBox="0 0 256 256" aria-hidden="true">
+      <rect width="256" height="256" rx="52" fill="var(--ink)"></rect>
+      <g transform="translate(64 78)">
+        <rect x="0" y="0"  width="128" height="26" rx="13" fill="var(--ground)"></rect>
+        <rect x="0" y="37" width="128" height="26" rx="13" fill="var(--brass)"></rect>
+        <rect x="0" y="74" width="128" height="26" rx="13" fill="var(--ground)"></rect>
+      </g>
+    </svg>
+    <h1>Mananu</h1>
+    <div class="stamp">Launch brief<br>6 September 2026</div>
+  </header>
+
+  <p class="standfirst">
+    A personal health-data platform that launches as two scales and one app. The proposition in one
+    line: <strong>photo apps guess how much is on the plate, and that guess is where the error
+    lives.</strong> You own a scale, so you don't have to guess — and everything the platform later
+    learns about a person is built on measured numbers, not estimates.
+  </p>
+
+  <div class="board">
+    <div class="card">
+      <span class="eyebrow">Brand name</span>
+      <span class="verdict">Mananu</span>
+      <span class="chip settled">Cleared — your own name</span>
+      <p>Of 44 names on the original list, the one that survived a full register screen. Zero UK marks, zero UK companies, one irrelevant US hit. Kelvo and Kelbrook are below.</p>
+    </div>
+    <div class="card">
+      <span class="eyebrow">Factory</span>
+      <span class="verdict">Shenzhen Unique Scales</span>
+      <span class="chip action">Ask for UK exclusivity</span>
+      <p>Also known as Lefu. Real ODM behind Etekcity and a Xiaomi scale. Scanfit took the Nordics and the US and left the UK open.</p>
+    </div>
+    <div class="card">
+      <span class="eyebrow">App stack</span>
+      <span class="verdict">Flutter + Supabase</span>
+      <span class="chip settled">Built</span>
+      <p>Reverses my earlier advice: the factory maintains an official Flutter plugin and no React Native binding.</p>
+    </div>
+    <div class="card">
+      <span class="eyebrow">Blocked on</span>
+      <span class="verdict">SDK credentials</span>
+      <span class="chip verify">Email the factory</span>
+      <p>appKey, appSecret, <code>lefu.config</code>, and the impedance frame map. About a day's work once they land.</p>
+    </div>
+  </div>
+
+  <section>
+    <h2><span class="num">01 — Name</span>Kelvo, Kelbrook, Mananu</h2>
+
+    <p><strong>Kelvo had to be withdrawn.</strong> trykelvo.com went live in mid-August as a pre-launch GLP-1
+    supplement brand — your Class 5 — with an open <code>robots.txt</code> asking to be indexed. Nobody asks to
+    be indexed for a domain they're squatting. The rest of the namespace was already gone and KELVO LTD was at
+    Companies House.</p>
+
+    <p><strong>Kelbrook</strong> was coined and screened as a replacement and came back clean: zero US records,
+    one unrelated UK mark, domains free. It remains the fallback.</p>
+
+    <p><strong>Then the whole original list was screened</strong> — all 44 names, through the same protocol that
+    caught Kelvo. Thirty-six were dead, ten of them to filings or incorporations from the previous 21 months in
+    exactly this category: Revora (a biomarker-and-supplement app, filed April 2026), Auvra (vitamin gummies,
+    March 2026), Voom Nutrition Ltd (incorporated March 2026), Withings filing <em>Nutrio</em> in Class 9 and 10
+    last August. Three were legally viable. One was also commercially sound.</p>
+
+    <div class="callout good">
+      <span class="label">Chosen</span>
+      <p><strong>Mananu.</strong> Your coinage. Three open syllables — anyone who hears it once spells it right.
+      Abstract, which is what a platform name has to be: Oura, Whoop, Zoe and Withings are all meaningless words,
+      and Mananu carries a blood test as easily as it carries a scale.</p>
+    </div>
+
+    <div class="scroller">
+      <table>
+        <thead><tr><th>Check</th><th>Mananu</th><th>Kelbrook (fallback)</th></tr></thead>
+        <tbody>
+          <tr><td>US trademark register</td><td>1 hit — MANANUKA honey, Class 30. Different word, different class.</td><td><span class="yes">0</span></td></tr>
+          <tr><td>UK trademark register</td><td><span class="yes">0</span></td><td>1 unrelated (candles, Class 3/4)</td></tr>
+          <tr><td>UK companies</td><td><span class="yes">0</span></td><td>23, all small and local</td></tr>
+          <tr><td>.com</td><td>Held by a domainer — <strong>buyable</strong>, expect four figures</td><td>An operating business (shooting lodge)</td></tr>
+          <tr><td>Free today</td><td><span class="yes">getmananu.com · trymananu.com · mananuhealth.com · mananu.health</span></td><td>getkelbrook.com · trykelbrook.com · kelbrook.health</td></tr>
+          <tr><td>Reads as</td><td>Platform, wellness, warm</td><td>Instrument maker</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout">
+      <span class="label">Still unverified</span>
+      <p>EUIPO could not be checked reliably for any name — every EU route was blocked or failed its control
+      test. <strong>Commission a professional UK and EU clearance search before filing.</strong> File Classes
+      <strong>9, 5, 42, 35, 10 and 44</strong> — six, because the roadmap includes wearables, testing and health
+      services, and Class 44 is where those live. Wiktionary lists "mananu" as a word in Kapampangan, a Philippine
+      language; the entry is unreadable from here but is built on <em>nanu</em>, "what" — benign, and not a UK or
+      EU market issue.</p>
+    </div>
+  </section>
+  <section>
+    <h2><span class="num">02 — Vision</span>Four stages, four regulatory lines</h2>
+
+    <p>The stated vision is ZOE's model, Withings' hardware breadth and WHOOP's data moat combined: scales, then a
+    wearable, then blood tests, then supplements chosen against the person's own data. It is a good vision and
+    it stages cleanly — but each stage crosses a line the previous one did not.</p>
+
+    <div class="scroller">
+      <table>
+        <thead><tr><th>Stage</th><th>What</th><th>Regulatory weight</th><th>Build it as</th></tr></thead>
+        <tbody>
+          <tr><td>1 · Now</td><td>Body scale + kitchen scale + app</td><td>Light — wellness, Art 9 consent, CE, PSTI</td><td>The repo</td></tr>
+          <tr><td>2 · Launch</td><td>Wearable data</td><td>Light — Health Connect declaration</td><td><strong>An integration, not a band.</strong> Ingest Apple Health, Health Connect, Oura, WHOOP, Garmin from day one. Ship your own band later, once there are users to sell it to.</td></tr>
+          <tr><td>3 · Later</td><td>Blood tests</td><td><strong>Heavy</strong> — IVD regulation, UKAS lab, likely CQC registration</td><td>A white-label partnership with an accredited lab, as Thriva and Medichecks do. Not a product build.</td></tr>
+          <tr><td>4 · Later</td><td>"What your body is missing" → supplements</td><td>Heavy in <em>wording</em> — the medical-device line</td><td>Show the result against its reference range and let the person choose. "Below the NHS range" is a fact; "you are deficient, buy this" makes the app a medical device.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout good">
+      <span class="label">The one decision that makes stages 2–4 cheap</span>
+      <p>Store every measurement — a scale reading, a night's HRV, a ferritin result — as <strong>one kind of row</strong>:
+      kind, value, unit, source, time, reference range. A cut-down FHIR <code>Observation</code>. A lab partner's API
+      then maps onto your schema in an afternoon, and the trend chart that already works for body fat works for
+      ferritin without new code. This is now Phase 1 of the hand-off.</p>
+    </div>
+
+    <p>Don't build a band for launch. The scale factory doesn't make them, white-label bands are poor, and a poor
+    band next to a good scale is the review that gets quoted. The customer who buys a £150 scale bundle very often
+    already owns an Oura, a Garmin or a WHOOP — let them connect it in thirty seconds and you hold the data WHOOP
+    alone can't.</p>
+  </section>
+
+
+  <section>
+    <h2><span class="num">03 — Commercial</span>The exclusivity is worth more than the discount</h2>
+
+    <p>Sophia's message says Scanfit holds exclusive distribution in <strong>Denmark, Norway, Sweden,
+    Holland, Finland and the United States</strong>.</p>
+
+    <p>Read that list for what isn't on it. <strong>The UK isn't. Nor is Germany, France, Spain, Italy,
+    Ireland or Poland.</strong> The largest markets in Europe are unclaimed on this product — and Scanfit,
+    the incumbent, is a small Danish operation sitting at 2.8 stars on Google Play with around 5,000
+    Android installs.</p>
+
+    <div class="callout good">
+      <span class="label">First ask</span>
+      <p>Not the $200 coupon. <strong>Exclusive UK and Ireland distribution</strong>, with right of first
+      refusal on Germany, France, Spain and Italy. If they resist on a first order — normal — ask for
+      exclusivity <em>triggered by volume</em>: non-exclusive now, converting once you pass an agreed unit
+      count. That costs them nothing and gives you a path. Get it on the proforma invoice, not in a chat.</p>
+    </div>
+
+    <p>Without that clause you'll be competing on Amazon UK against three other people buying the same
+    white-label unit from the same factory within a year.</p>
+
+    <p>One more thing worth knowing: <strong>you don't need the final name to place the order.</strong>
+    Most factories will run a first batch on neutral packaging and hold the printed carton until you send
+    artwork. Ask — it decouples the trademark work from the production slot.</p>
+  </section>
+
+  <section>
+    <h2><span class="num">04 — Product</span>Where the accuracy actually goes</h2>
+
+    <p>A controlled-feeding study presented at NUTRITION 2026 measured the leading calorie apps against
+    102 standardised meals weighed to a tenth of a gram. All four underestimated, by
+    <strong>250–345 kcal per meal on average</strong>, with fat under-reported by roughly 30 g.</p>
+
+    <p>Break that error into its three sources, and it's clear what a scale can and can't fix:</p>
+
+    <div class="budget">
+      <div class="budget-bar" role="img" aria-label="Error budget: identification small, quantity moderate, cooking fat and preparation largest">
+        <span class="seg-id">Identification</span>
+        <span class="seg-qty">Quantity</span>
+        <span class="seg-fat">Cooking fat &amp; preparation</span>
+      </div>
+      <div class="budget-key">
+        <span><b>Identification</b> — what is it. The camera is good at this.</span>
+        <span><b>Quantity</b> — the scale solves it completely.</span>
+        <span><b>Cooking fat</b> — invisible to any camera. The biggest share.</span>
+      </div>
+    </div>
+
+    <p>So the honest pitch isn't "our scale is accurate". It's that the scale eliminates the quantity
+    error outright, and the app attacks the largest remaining one with a workflow no photo app can copy:
+    <strong>weigh the pan, weigh the oil, weigh what's left.</strong> The difference went into the food.</p>
+
+    <h3>What that looks like in the app</h3>
+    <ul>
+      <li><strong>Running tare.</strong> Add one ingredient at a time; the app captures each one from the change in weight, so the bowl is never emptied. Each capture is an exact food-and-grams pair.</li>
+      <li><strong>Cooking-oil capture.</strong> The line item that targets the published failure mode directly.</li>
+      <li><strong>Raw-to-cooked conversion.</strong> Logging 225 g of cooked rice against a dry database row overstates it by 534 kcal. The app converts.</li>
+      <li><strong>Personal calibration.</strong> Because you hold true grams for foods this user eats repeatedly, you can measure the model's bias for them and correct it. A photo-only app has no ground truth and can never close that loop.</li>
+      <li><strong>A "% weighed" figure on every day and every meal.</strong> Simultaneously the honesty statement and the retention loop — people want to raise a percentage, and the only way to raise this one is to use the scale.</li>
+    </ul>
+
+    <h3>Keeping the AI near-free</h3>
+    <p>Four decisions, in order of impact. <strong>Never ask the model for portion size</strong> — that's
+    the whole point of owning a scale, and it means a smaller model and fewer output tokens. Downscale to
+    512 px on the device before upload. Cache by image hash, shared across users, because people photograph
+    the same breakfast for weeks. And send context — time of day, locale, recent foods — which a published
+    benchmark found cuts calorie error more than a model upgrade would.</p>
+    <p>Net effect: <strong>well under a tenth of a penny per identification</strong>, roughly a hundredth of
+    what a specialist food-recognition API charges. Metering exists to stop a runaway client loop, not
+    because the calls are expensive — and when the quota runs out, weighing still works.</p>
+  </section>
+
+  <section>
+    <h2><span class="num">05 — Build</span>What's finished and what isn't</h2>
+
+    <div class="scroller">
+      <table>
+        <thead><tr><th>Built and tested</th><th>Waiting on the factory</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>Body-composition engine — Sun 2003, Kyle 2001, Deurenberg, Janssen, Cunningham, Mifflin-St Jeor, each with its published standard error</td>
+            <td>Model code and electrode configuration for Solution A vs B</td>
+          </tr>
+          <tr>
+            <td>Byte parsers for four BLE protocols, tested against captured frames</td>
+            <td>The 40-byte result frame map, for impedance over raw BLE</td>
+          </tr>
+          <tr>
+            <td>Portion engine — running tare, yield factors, cooking fat, calibration</td>
+            <td>Encoding of the ten segmental impedance values</td>
+          </tr>
+          <tr>
+            <td>Supabase schema with row-level security, consent records, real deletion</td>
+            <td>appKey, appSecret, <code>lefu.config</code></td>
+          </tr>
+          <tr>
+            <td>Hand-off updated: Phase 1 now starts with the single <code>observations</code> model that stages 2–4 depend on</td>
+            <td>Health Connect and Oura/WHOOP/Garmin adapters (Phase 5 of the hand-off)</td>
+          </tr>
+          <tr>
+            <td>Vision endpoint, cached and metered · Today, Body, Weigh, Onboarding, Settings screens</td>
+            <td>A written answer on whether the licence expires and whether the SDK phones home</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>Every numeric claim in the engine is covered by unit tests written from the published coefficients,
+    and re-checked independently by a second implementation — <strong>40 checks, all passing.</strong>
+    The app runs today on a simulated driver, so screens can be built and App Review can be given a route
+    through the flow without hardware.</p>
+
+    <details>
+      <summary>Two decisions in the code worth knowing about</summary>
+      <p><strong>There is no visceral fat rating and no metabolic age.</strong> Visceral fat from a
+      foot-to-foot scale has no published algorithm and no validation; metabolic age is a restatement of
+      BMR against a population table. Bone mass <em>is</em> computed, and labelled "not measured", because
+      bone mineral is effectively invisible to a 50 kHz current — it moves with your weight, and users read
+      that as bone change.</p>
+      <p><strong>The vendor SDK sits behind an interface.</strong> It's a closed binary needing an encrypted
+      licence blob to start. Keeping it behind <code>ScaleDriver</code> means a lapsed licence doesn't brick
+      the product, and a second-source scale is a new adapter rather than a rewrite.</p>
+    </details>
+
+    <details>
+      <summary>The GDPR trap in the factory's SDK</summary>
+      <p>Their SDK offers two paths for the body-composition maths: a local library, and a cloud endpoint at
+      <code>uniquehealth.lefuenergy.com</code>. The cloud endpoint takes age, sex, height, weight, heart rate
+      and impedance — Article 9 special-category health data — to a server in the PRC. No adequacy decision,
+      no SCCs, no processor agreement. Their own consumer app's privacy policy says PRC data stays in the PRC
+      and mentions GDPR nowhere.</p>
+      <p>A privacy notice does not fix that. The app is architected so it never happens: BLE, to the phone,
+      to local calculation, to your EU backend. Ask them for a DPA anyway.</p>
+    </details>
+  </section>
+
+  <section>
+    <h2><span class="num">06 — Next</span>This week</h2>
+
+    <ul class="checklist">
+      <li><span class="when">Today</span><span class="what">Register the Mananu domains, open the .com negotiation
+        <small>getmananu.com, trymananu.com, mananuhealth.com, mananu.health verified free. mananu.com is with HugeDomains — buyable. Check mananu.co.uk yourself; Nominet was unreachable from here.</small></span></li>
+      <li><span class="when">Today</span><span class="what">Start the D-U-N-S application
+        <small>Free, up to two weeks, and an Apple organisation account can't be created without it. Health apps must be submitted by a company, not a person.</small></span></li>
+      <li><span class="when">Today</span><span class="what">Reply to Sophia
+        <small>Re-open the conversation, ask for UK and Ireland exclusivity, ask for model codes and electrode configuration, ask whether the coupons can be reinstated</small></span></li>
+      <li><span class="when">Today</span><span class="what">Email the SDK team
+        <small><code>yanfabu-5@lefu.cc</code> — the eight engineering questions, not the sales contact</small></span></li>
+      <li><span class="when">This week</span><span class="what">Instruct a trademark attorney
+        <small>UK and EU clearance on MANANU — Classes 9, 5, 42, 35, 10 and 44, including pending marks</small></span></li>
+      <li><span class="when">2 weeks</span><span class="what">Place the order on neutral packaging
+        <small>Decoupled from the naming and trademark work</small></span></li>
+      <li><span class="when">Before sale</span><span class="what">Technical file, DoC, PSTI statement, WEEE and battery registration
+        <small>Putting your name on their product makes you the manufacturer in law, not a reseller</small></span></li>
+    </ul>
+  </section>
+
+  <footer>
+    <p>Full detail is in the repository: the factory question list, the name and domain workings,
+    what you may and may not claim in advertising, the UK and EU compliance checklist, and the build
+    runbook. Source, tests and Supabase migrations included.</p>
+    <p>Nothing here is legal advice. The trademark position needs an attorney's clearance opinion
+    before you file, and the EU register in particular is unverified.</p>
+  </footer>
+
+</div>

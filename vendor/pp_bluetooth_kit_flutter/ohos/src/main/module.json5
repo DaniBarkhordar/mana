@@ -1,0 +1,10 @@
+{
+  "module": {
+    "name": "pp_bluetooth_kit_flutter",
+    "type": "har",
+    "deviceTypes": [
+      "default",
+      "tablet"
+    ]
+  }
+}

@@ -1,0 +1,63 @@
+name: mananu
+description: Mananu — weigh it, don't guess it. Body composition and food logging
+  built around a scale rather than a camera.
+publish_to: none
+version: 0.1.0+1
+
+environment:
+  sdk: ">=3.4.0 <4.0.0"
+  flutter: ">=3.22.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # State. Riverpod over Bloc here: the app is mostly streams (a live weight, a
+  # day's log) and Riverpod's StreamProvider maps onto that with far less
+  # ceremony.
+  flutter_riverpod: ^2.5.1
+  riverpod_annotation: ^2.3.5
+
+  # Backend. EU region — see docs/04-compliance-uk.md.
+  supabase_flutter: ^2.5.6
+
+  # Local-first. Every log works offline and syncs later; a food diary that
+  # needs signal is a food diary people abandon.
+  drift: ^2.18.0
+  sqlite3_flutter_libs: ^0.5.20
+  path_provider: ^2.1.3
+
+  # The vendor's own Flutter plugin for the Shenzhen Unique Scales (Lefu)
+  # hardware. Uncomment once the appKey, appSecret and lefu.config arrive.
+  # pp_bluetooth_kit_flutter:
+  #   git:
+  #     url: https://github.com/LefuHengqi/pp_bluetooth_kit_flutter.git
+  #     ref: 0.1.1
+
+  # Independent BLE path, so the app is not hostage to a vendor licence blob.
+  flutter_blue_plus: ^1.32.7
+  permission_handler: ^11.3.1
+
+  camera: ^0.11.0+2
+  image: ^4.2.0
+  mobile_scanner: ^5.1.1
+
+  fl_chart: ^0.68.0
+  intl: ^0.19.0
+  collection: ^1.18.0
+
+  purchases_flutter: ^6.29.3
+  health: ^10.2.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+  drift_dev: ^2.18.0
+  build_runner: ^2.4.11
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/
+    - assets/food/

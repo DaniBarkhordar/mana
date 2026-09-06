@@ -1,0 +1,13 @@
+{
+  "name": "pp_bluetooth_kit_flutter",
+  "version": "1.0.0",
+  "description": "Please describe the basic information.",
+  "main": "index.ets",
+  "author": "",
+  "license": "Apache-2.0",
+  "dependencies": {
+    "@ohos/flutter_ohos": "file:./har/flutter.har",
+//    "ppsdkkit": "file:..//ppsdkkit",
+    "ppsdkkit": "file:./har/ppsdkkit.har"
+  }
+}

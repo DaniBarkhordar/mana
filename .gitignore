@@ -1,0 +1,30 @@
+# Flutter / Dart build output. Scoped to the app so the vendored demos, which
+# check their own build files in deliberately, are left alone.
+app/.dart_tool/
+app/build/
+app/.flutter-plugins
+app/.flutter-plugins-dependencies
+app/.packages
+app/*.iml
+app/.idea/
+app/ios/Pods/
+app/ios/.symlinks/
+app/android/.gradle/
+app/android/local.properties
+app/coverage/
+
+# Vendor licence artefact, not source. See HANDOFF.md Phase 3 and docs/10-sdk.md.
+app/assets/lefu.config
+
+# Raw nutrition datasets downloaded for scripts/build_food_db.py. Large, and
+# each carries its own licence; only the built core.sqlite is shipped.
+data/
+
+# Supabase local state
+supabase/.temp/
+supabase/.branches/
+
+# OS and editor noise
+.DS_Store
+Thumbs.db
+*.swp

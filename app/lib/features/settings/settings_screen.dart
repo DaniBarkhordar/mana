@@ -1,0 +1,241 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../core/data/providers.dart';
+import '../../core/scale/scale_driver.dart';
+import '../../theme/tokens.dart';
+
+/// Settings.
+///
+/// Three items here are legal requirements rather than features:
+/// withdrawing consent must be as easy as giving it (UK GDPR Art 7(3)); in-app
+/// account deletion is mandatory under Apple guideline 5.1.1(v) and is the only
+/// thing that satisfies Art 17; and data export is what makes the first two
+/// something a user will actually use.
+class SettingsScreen extends ConsumerWidget {
+  const SettingsScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final body = ref.watch(bodyConnectionProvider).valueOrNull;
+    final kitchen = ref.watch(kitchenConnectionProvider).valueOrNull;
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Settings')),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(
+          MananuSpacing.lg,
+          MananuSpacing.sm,
+          MananuSpacing.lg,
+          120,
+        ),
+        children: [
+          MananuSection(
+            title: 'Your scales',
+            child: Card(
+              child: Column(
+                children: [
+                  _DeviceTile(
+                    title: 'Body scale',
+                    state: body,
+                    subtitle: 'Bare feet, hard floor, same time each morning',
+                  ),
+                  const Divider(height: 1),
+                  _DeviceTile(
+                    title: 'Kitchen scale',
+                    state: kitchen,
+                    subtitle: 'Tare between ingredients, or let Mananu take '
+                        'the difference',
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: MananuSpacing.xl),
+          MananuSection(
+            title: 'Your data',
+            child: Card(
+              child: Column(
+                children: [
+                  const _NavTile(
+                    icon: Icons.verified_user_outlined,
+                    title: 'Body composition consent',
+                    subtitle: 'Withdraw at any time. Weight and food logging '
+                        'keep working without it.',
+                  ),
+                  const Divider(height: 1),
+                  const _NavTile(
+                    icon: Icons.auto_awesome_outlined,
+                    title: 'Photo recognition',
+                    subtitle: 'Meal photos are sent to our AI provider only '
+                        'when you take one. Turn this off and search still '
+                        'works.',
+                  ),
+                  const Divider(height: 1),
+                  const _NavTile(
+                    icon: Icons.download_outlined,
+                    title: 'Export everything',
+                    subtitle: 'Every measurement and meal, as CSV',
+                  ),
+                  const Divider(height: 1),
+                  _NavTile(
+                    icon: Icons.delete_forever_outlined,
+                    title: 'Delete my account',
+                    subtitle: 'Erased, not hidden. This cannot be undone.',
+                    danger: true,
+                    onTap: () => _confirmDelete(context),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: MananuSpacing.xl),
+          MananuSection(
+            title: 'About',
+            child: Card(
+              child: Padding(
+                padding: const EdgeInsets.all(MananuSpacing.lg),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Mananu is not a medical device. It does not diagnose, '
+                      'treat, cure or prevent any disease. Do not use the body '
+                      'scale if you have a pacemaker or another implanted '
+                      'electronic device.',
+                      style: MananuType.caption.copyWith(
+                        color: MananuColors.warning,
+                      ),
+                    ),
+                    const SizedBox(height: MananuSpacing.md),
+                    Text(
+                      "Nutrition data: McCance and Widdowson's The Composition "
+                      'of Foods Integrated Dataset, used under the Open '
+                      'Government Licence v3.0; USDA FoodData Central, public '
+                      'domain; barcode data from Open Food Facts under the '
+                      'Open Database Licence.',
+                      style: MananuType.caption.copyWith(
+                        color: Theme.of(context)
+                            .colorScheme
+                            .onSurface
+                            .withValues(alpha: 0.5),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _confirmDelete(BuildContext context) async {
+    await showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete your account?'),
+        content: const Text(
+          'Every measurement, meal and photo will be permanently erased. '
+          'Export your data first if you want to keep it.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            style: TextButton.styleFrom(
+              foregroundColor: MananuColors.danger,
+            ),
+            child: const Text('Delete everything'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DeviceTile extends StatelessWidget {
+  const _DeviceTile({
+    required this.title,
+    required this.state,
+    required this.subtitle,
+  });
+
+  final String title;
+  final ScaleConnectionState? state;
+  final String subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    final connected = state == ScaleConnectionState.connected;
+    final unauthorised = state == ScaleConnectionState.unauthorised;
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(
+        horizontal: MananuSpacing.lg,
+        vertical: MananuSpacing.sm,
+      ),
+      leading: Container(
+        width: 9,
+        height: 9,
+        margin: const EdgeInsets.only(top: 6),
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: connected
+              ? MananuColors.measured
+              : unauthorised
+                  ? MananuColors.danger
+                  : MananuColors.mist,
+        ),
+      ),
+      title: Text(title, style: MananuType.bodyStrong),
+      subtitle: Text(
+        unauthorised
+            ? 'Could not start the scale software. Weight still works; get in '
+                'touch and we will sort it.'
+            : subtitle,
+        style: MananuType.caption,
+      ),
+      trailing: Text(
+        connected ? 'Connected' : 'Not connected',
+        style: MananuType.caption,
+      ),
+    );
+  }
+}
+
+class _NavTile extends StatelessWidget {
+  const _NavTile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    this.danger = false,
+    this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final bool danger;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colour =
+        danger ? MananuColors.danger : Theme.of(context).colorScheme.onSurface;
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(
+        horizontal: MananuSpacing.lg,
+        vertical: MananuSpacing.sm,
+      ),
+      leading: Icon(icon, color: colour, size: 21),
+      title: Text(title, style: MananuType.bodyStrong.copyWith(color: colour)),
+      subtitle: Text(subtitle, style: MananuType.caption),
+      trailing: const Icon(Icons.chevron_right, size: 20),
+      onTap: onTap,
+    );
+  }
+}
