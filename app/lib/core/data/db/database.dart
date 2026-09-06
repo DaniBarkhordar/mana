@@ -10,6 +10,7 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../platform/backup_exclusion.dart';
 import 'tables.dart';
 
 part 'database.g.dart';
@@ -133,13 +134,17 @@ class AppDatabase extends _$AppDatabase {
   /// must not be evicted.
   ///
   /// It holds health data, so it must stay out of cloud backups (CLAUDE.md,
-  /// "Don't"). Android: `allowBackup="false"` in the manifest, set. iOS: the
-  /// file needs `NSURLIsExcludedFromBackupKey`, which takes a few lines of
-  /// native code — open item for the iOS build, tracked in HANDOFF.md Phase 4.
+  /// "Don't"). Android: `allowBackup="false"` in the manifest. iOS: the file
+  /// is flagged `NSURLIsExcludedFromBackupKey` through [BackupExclusion].
   static Future<AppDatabase> open() async {
     final dir = await getApplicationDocumentsDirectory();
     final file = File(p.join(dir.path, 'mananu.sqlite'));
-    return AppDatabase(NativeDatabase.createInBackground(file));
+    final db = AppDatabase(NativeDatabase.createInBackground(file));
+    // Touch the schema so the file exists, then flag it. iOS only; a no-op
+    // elsewhere.
+    await db.customSelect('SELECT 1').get();
+    await BackupExclusion.exclude(file.path);
+    return db;
   }
 
   static const _uuid = Uuid();

@@ -66,7 +66,10 @@ void main() {
       ? base
       : base.copyWith(textTheme: base.textTheme.apply(fontFamily: 'Shot'));
 
-  Widget app({required Widget home, Brightness brightness = Brightness.light}) =>
+  Widget app({
+    required Widget home,
+    Brightness brightness = Brightness.light,
+  }) =>
       ProviderScope(
         overrides: [
           appServicesProvider.overrideWith((ref) async => services),
@@ -112,7 +115,8 @@ void main() {
 
   testWidgets('today', (tester) async {
     await phone(tester);
-    await tester.pumpWidget(app(home: const RepaintBoundary(child: MananuRoot())));
+    await tester
+        .pumpWidget(app(home: const RepaintBoundary(child: MananuRoot())));
     await shoot(tester, 'today');
     await shutDown(tester);
   });
@@ -131,12 +135,16 @@ void main() {
 
   testWidgets('body', (tester) async {
     await phone(tester);
-    await tester.pumpWidget(app(home: const RepaintBoundary(child: MananuRoot())));
+    await tester
+        .pumpWidget(app(home: const RepaintBoundary(child: MananuRoot())));
     for (var i = 0; i < 10; i++) {
       await tester.pump(const Duration(milliseconds: 100));
     }
     await tester.tap(
-      find.descendant(of: find.byType(NavigationBar), matching: find.text('Body')),
+      find.descendant(
+        of: find.byType(NavigationBar),
+        matching: find.text('Body'),
+      ),
     );
     await shoot(tester, 'body');
     await shutDown(tester);
@@ -144,7 +152,8 @@ void main() {
 
   testWidgets('settings', (tester) async {
     await phone(tester);
-    await tester.pumpWidget(app(home: const RepaintBoundary(child: MananuRoot())));
+    await tester
+        .pumpWidget(app(home: const RepaintBoundary(child: MananuRoot())));
     for (var i = 0; i < 10; i++) {
       await tester.pump(const Duration(milliseconds: 100));
     }

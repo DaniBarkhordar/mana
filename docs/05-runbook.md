@@ -98,6 +98,16 @@ Region matters legally, not just for latency — see `04-compliance-uk.md` §4.
 select count(*) from body_measurements where user_id <> auth.uid();
 ```
 
+## 3a. Sign-in providers
+
+Sign-in is a *link*: the anonymous user the diary already syncs under gains an identity and keeps its id. Set up, in the Supabase dashboard under Authentication → Providers:
+
+- **Apple.** Enable, add the app's bundle id (`com.mananu.mananu`) as a client id. In Xcode, the Runner target needs the Sign in with Apple capability; `ios/Runner/Runner.entitlements` already declares it and the project points at that file.
+- **Google.** Create OAuth clients in the Google Cloud console: one *Web* client (paste its id and secret into Supabase; this is what mints the id token) and one *iOS* client for the app. Build with `--dart-define=GOOGLE_WEB_CLIENT_ID=... --dart-define=GOOGLE_IOS_CLIENT_ID=...`; without the web id the Google button is hidden. Android needs the SHA-1 of your signing key on the Android client in the same console.
+- **Email.** Enable the email provider with OTP; the app sends a six-digit code, never a magic link. Set the OTP template to show the `{{ .Token }}`. Linking an address to an anonymous user uses the *email change* code, so keep that template too.
+
+Keep anonymous sign-ins enabled (§3). The Account screen explains the temporary account and offers the three routes; sign-out syncs, then wipes the phone.
+
 ## 4. Wiring the real scale
 
 The vendor driver is written against the vendored plugin (`vendor/pp_bluetooth_kit_flutter`, a path dependency) and tested against a fake channel. What it needs from you is the licence:
@@ -154,6 +164,8 @@ npm i -g eas-cli    # or use flutter build directly
 flutter build ipa --release
 flutter build appbundle --release
 ```
+
+Before the first TestFlight build, verify on a device that the database is out of iCloud: Settings → General → iPhone Storage → Mananu should show no "Documents & Data" growth in iCloud Backup, or check `NSURLIsExcludedFromBackupKey` with `xcrun simctl` on the simulator container. `AppDelegate.swift` sets it; this is the one-time check that it took.
 
 **Start the D-U-N-S number today.** An Apple organisation account requires it, it is free, and it takes up to two weeks. It is the classic blocker that catches everyone, and healthcare apps *must* be submitted by a legal entity rather than an individual (guideline 5.1.1(ix)). Register Google Play as an organisation too, or you face a 14-day closed test before you can release.
 

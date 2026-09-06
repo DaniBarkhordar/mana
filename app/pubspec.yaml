@@ -61,6 +61,10 @@ dependencies:
 
   purchases_flutter: ^6.29.3
   health: ^10.2.0
+  sign_in_with_apple: ^8.2.0
+  google_sign_in: ^7.2.0
+  share_plus: ^12.0.2
+  crypto: ^3.0.7
 
 dev_dependencies:
   flutter_test:

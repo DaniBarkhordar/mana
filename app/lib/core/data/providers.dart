@@ -16,6 +16,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../auth/auth_service.dart';
 import '../bia/body_composition.dart';
 import '../bia/equations.dart';
 import '../food/food_catalog.dart';
@@ -28,6 +29,7 @@ import '../nutrition/portion.dart';
 import '../scale/lefu_driver.dart';
 import '../scale/pairing.dart';
 import '../scale/scale_driver.dart';
+import 'account_actions.dart';
 import 'db/database.dart';
 import 'models.dart';
 import 'repositories/body_repository.dart';
@@ -39,6 +41,14 @@ import 'sync/supabase_sync_remote.dart';
 import 'sync/sync_engine.dart';
 import 'sync/sync_scheduler.dart';
 
+export '../auth/auth_service.dart'
+    show
+        AccountKind,
+        AccountStatus,
+        AuthService,
+        IdentityProvider,
+        SignInCancelled;
+export 'account_actions.dart' show AccountActions, DataExporter;
 export 'models.dart';
 export 'sync/sync_engine.dart' show SyncOutcome, SyncReport;
 
@@ -186,6 +196,36 @@ final appServicesProvider = FutureProvider<AppServices>((ref) async {
     db.close();
   });
   return AppServices.over(db, sync: sync, supabase: supabase);
+});
+
+// ---------------------------------------------------------------------------
+// Account
+// ---------------------------------------------------------------------------
+
+final authServiceProvider = FutureProvider<AuthService>((ref) async {
+  final s = await ref.watch(appServicesProvider.future);
+  final client = s.supabase;
+  return AuthService(
+    client == null ? const NoAuthBackend() : SupabaseAuthBackend(client),
+    s.db,
+  );
+});
+
+/// Who this phone is signed in as. `none` in a local-only build.
+final accountStatusProvider = StreamProvider<AccountStatus>((ref) async* {
+  final auth = await ref.watch(authServiceProvider.future);
+  yield auth.status;
+  yield* auth.changes;
+});
+
+final accountActionsProvider = FutureProvider<AccountActions>((ref) async {
+  final s = await ref.watch(appServicesProvider.future);
+  return AccountActions(db: s.db, profiles: s.profiles, supabase: s.supabase);
+});
+
+final dataExporterProvider = FutureProvider<DataExporter>((ref) async {
+  final s = await ref.watch(appServicesProvider.future);
+  return DataExporter(s.db);
 });
 
 // ---------------------------------------------------------------------------

@@ -5,6 +5,7 @@ import '../../core/data/providers.dart';
 import '../../core/scale/scale_driver.dart';
 import '../../theme/instruments.dart';
 import '../../theme/tokens.dart';
+import 'account_screen.dart';
 import 'scale_pairing_sheet.dart';
 
 /// Settings.
@@ -71,21 +72,19 @@ class SettingsScreen extends ConsumerWidget {
               child: Card(
                 child: Column(
                   children: [
+                    const _AccountTile(),
+                    const Divider(height: 1),
                     const _BackupTile(),
                     const Divider(height: 1),
-                    const _NavTile(
-                      icon: Icons.verified_user_outlined,
-                      title: 'Body composition consent',
-                      subtitle: 'Withdraw at any time. Weight and food logging '
-                          'keep working without it.',
-                    ),
+                    const _BodyConsentTile(),
                     const Divider(height: 1),
                     const _PhotoConsentTile(),
                     const Divider(height: 1),
-                    const _NavTile(
+                    _NavTile(
                       icon: Icons.download_outlined,
                       title: 'Export everything',
                       subtitle: 'Every measurement and meal, as CSV',
+                      onTap: () => _export(context, ref),
                     ),
                     const Divider(height: 1),
                     _NavTile(
@@ -93,7 +92,7 @@ class SettingsScreen extends ConsumerWidget {
                       title: 'Delete my account',
                       subtitle: 'Erased, not hidden. This cannot be undone.',
                       danger: true,
-                      onTap: () => _confirmDelete(context),
+                      onTap: () => _confirmDelete(context, ref),
                     ),
                   ],
                 ),
@@ -149,22 +148,35 @@ class SettingsScreen extends ConsumerWidget {
     );
   }
 
-  Future<void> _confirmDelete(BuildContext context) async {
-    await showDialog<void>(
+  Future<void> _export(BuildContext context, WidgetRef ref) async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final exporter = await ref.read(dataExporterProvider.future);
+      await exporter.shareAll();
+    } on Object {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Could not prepare the export.')),
+      );
+    }
+  }
+
+  Future<void> _confirmDelete(BuildContext context, WidgetRef ref) async {
+    final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Delete your account?'),
         content: const Text(
-          'Every measurement, meal and photo will be permanently erased. '
-          'Export your data first if you want to keep it.',
+          'Every measurement, meal and photo will be permanently erased from '
+          'this phone and from our servers. Export your data first if you '
+          'want to keep it.',
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(context, false),
             child: const Text('Cancel'),
           ),
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(context, true),
             style: TextButton.styleFrom(
               foregroundColor: MananuColors.danger,
             ),
@@ -173,12 +185,153 @@ class SettingsScreen extends ConsumerWidget {
         ],
       ),
     );
+    if (confirmed != true || !context.mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final actions = await ref.read(accountActionsProvider.future);
+      await actions.deleteAccount();
+      // The profile is gone, so the root falls back to onboarding on its own.
+    } on Object {
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Could not reach the server to delete your account. Nothing was '
+            'removed; try again when you are online.',
+          ),
+        ),
+      );
+    }
   }
 }
 
-/// Where the diary stands: on this phone only, or backed up. Honest about the
-/// build too — a build with no backend configured says so rather than
-/// pretending to sync.
+/// Who this phone is signed in as, and the way to the Account screen.
+class _AccountTile extends ConsumerWidget {
+  const _AccountTile();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final status =
+        ref.watch(accountStatusProvider).valueOrNull ?? AccountStatus.none;
+    final hasBackend =
+        ref.watch(appServicesProvider).valueOrNull?.supabase != null;
+    final subtitle = !hasBackend
+        ? 'This build has no account. Everything stays on this phone.'
+        : status.isSignedIn
+            ? status.label
+            : 'Temporary account. Sign in to keep your diary if you lose '
+                'this phone.';
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(
+        horizontal: MananuSpacing.lg,
+        vertical: MananuSpacing.sm,
+      ),
+      leading: Icon(
+        status.isSignedIn ? Icons.person_outline : Icons.person_off_outlined,
+        color: Theme.of(context).colorScheme.onSurface,
+        size: 21,
+      ),
+      title: const Text('Account', style: MananuType.bodyStrong),
+      subtitle: Text(subtitle, style: MananuType.caption),
+      trailing: hasBackend && !status.isSignedIn
+          ? Text(
+              'Sign in',
+              style: MananuType.caption.copyWith(
+                color: MananuColors.brass,
+                fontWeight: FontWeight.w600,
+              ),
+            )
+          : Icon(
+              Icons.chevron_right,
+              color: Theme.of(context)
+                  .colorScheme
+                  .onSurface
+                  .withValues(alpha: 0.4),
+            ),
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute<void>(builder: (_) => const AccountScreen()),
+      ),
+    );
+  }
+}
+
+/// Withdrawing must be as easy as granting (UK GDPR Art 7(3)). Withdrawal
+/// asks one more question — keep or delete what was already computed — and
+/// each answer is a new consent row.
+class _BodyConsentTile extends ConsumerWidget {
+  const _BodyConsentTile();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final consent = ref.watch(bodyCompositionConsentProvider).valueOrNull;
+    final granted = consent?.granted ?? false;
+    return SwitchListTile(
+      contentPadding: const EdgeInsets.symmetric(
+        horizontal: MananuSpacing.lg,
+        vertical: MananuSpacing.sm,
+      ),
+      secondary: Icon(
+        Icons.verified_user_outlined,
+        color: Theme.of(context).colorScheme.onSurface,
+        size: 21,
+      ),
+      title: const Text('Body composition', style: MananuType.bodyStrong),
+      subtitle: Text(
+        granted
+            ? 'Body fat, muscle and water are worked out from your scale\'s '
+                'impedance. Switch off at any time; weight keeps working.'
+            : 'Off. Readings are stored as weight only.',
+        style: MananuType.caption,
+      ),
+      value: granted,
+      onChanged: (v) => v ? _grant(ref) : _withdraw(context, ref),
+    );
+  }
+
+  Future<void> _grant(WidgetRef ref) async {
+    final services = await ref.read(appServicesProvider.future);
+    await services.profiles.recordConsent(
+      ConsentRecord(
+        purpose: ConsentRecord.bodyComposition,
+        policyVersion: ConsentRecord.currentPolicyVersion,
+        granted: true,
+        grantedAt: DateTime.now(),
+      ),
+    );
+  }
+
+  Future<void> _withdraw(BuildContext context, WidgetRef ref) async {
+    final choice = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Stop working out body composition?'),
+        content: const Text(
+          'New readings will be stored as weight only. You can also remove '
+          'the body fat, muscle and water figures already stored; the weights '
+          'stay either way.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, 'keep'),
+            child: const Text('Stop, keep history'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, 'delete'),
+            style: TextButton.styleFrom(foregroundColor: MananuColors.danger),
+            child: const Text('Stop and delete'),
+          ),
+        ],
+      ),
+    );
+    if (choice == null) return;
+    final actions = await ref.read(accountActionsProvider.future);
+    await actions.withdrawBodyComposition(deleteExisting: choice == 'delete');
+  }
+}
+
 class _BackupTile extends ConsumerWidget {
   const _BackupTile();
 
