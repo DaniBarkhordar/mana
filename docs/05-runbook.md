@@ -108,6 +108,24 @@ Sign-in is a *link*: the anonymous user the diary already syncs under gains an i
 
 Keep anonymous sign-ins enabled (§3). The Account screen explains the temporary account and offers the three routes; sign-out syncs, then wipes the phone.
 
+## 3b. Plus, through RevenueCat
+
+The app never decides its own tier. RevenueCat talks to the stores, the webhook mirrors the result into `public.entitlements`, and the vision function meters from that table.
+
+1. In RevenueCat, create the project with an iOS and an Android app, one entitlement with identifier **`plus`**, and an offering with a monthly (£4.99) and an annual (£39.99) package. Create the matching products in App Store Connect and Google Play Console.
+2. Build with the public SDK keys: `--dart-define=REVENUECAT_IOS_KEY=appl_... --dart-define=REVENUECAT_ANDROID_KEY=goog_...`. Without them the paywall says purchases are not available in this build, and everything reads as free.
+3. Deploy the webhook and give RevenueCat its address:
+
+   ```bash
+   supabase secrets set REVENUECAT_WEBHOOK_SECRET=<long random string>
+   supabase functions deploy revenuecat-webhook --no-verify-jwt
+   ```
+
+   RevenueCat → Integrations → Webhooks: URL `https://<ref>.supabase.co/functions/v1/revenuecat-webhook`, Authorization header value = the same secret. The function upserts `{user_id, tier, expires_at}` for grants, renewals, cancellations-to-expiry and expirations, and ignores the rest (`webhook.ts`, seven tests).
+4. The app identifies RevenueCat with the Supabase user id on every account change (`Purchases.logIn`), so `app_user_id` in the webhook *is* the uid, and Plus follows a sign-in onto a new phone.
+
+Bundled Plus with the hardware: grant it in RevenueCat as a promotional entitlement with an end date; the webhook writes the expiry and the tier lapses to free when it passes (runbook §7).
+
 ## 4. Wiring the real scale
 
 The vendor driver is written against the vendored plugin (`vendor/pp_bluetooth_kit_flutter`, a path dependency) and tested against a fake channel. What it needs from you is the licence:

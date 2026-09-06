@@ -181,9 +181,39 @@ function clamp01(v: unknown, fallback: number): number {
 
 export type Tier = "free" | "plus";
 
-/** Hard ceiling per user per day. Protects against a runaway client loop and
- *  keeps the free tier's worst case bounded. */
-export const DAILY_LIMIT: Record<Tier, number> = { free: 30, plus: 400 };
+/**
+ * The allowance, as sold (runbook §7): thirty scans a month free, unlimited
+ * on Plus. "Unlimited" still has a per-day ceiling that no person reaches,
+ * so a runaway client loop cannot run up a bill.
+ */
+export const FREE_MONTHLY_LIMIT = 30;
+export const PLUS_DAILY_CEILING = 400;
+
+export interface Quota {
+  limit: number;
+  /** Start of the window, UTC. */
+  since: Date;
+  /** What to tell the person when it is spent. */
+  note: string;
+}
+
+export function quotaFor(tier: Tier, now: Date = new Date()): Quota {
+  if (tier === "plus") {
+    const since = new Date(now);
+    since.setUTCHours(0, 0, 0, 0);
+    return {
+      limit: PLUS_DAILY_CEILING,
+      since,
+      note: "That is a lot of photos for one day. Weighing still works; scans come back tomorrow.",
+    };
+  }
+  const since = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+  return {
+    limit: FREE_MONTHLY_LIMIT,
+    since,
+    note: "You've used this month's 30 free photo scans. Plus has no limit — and the scale always works.",
+  };
+}
 
 export function tierOf(value: unknown): Tier {
   return value === "plus" ? "plus" : "free";
@@ -278,10 +308,10 @@ export const UNAVAILABLE: IdentifyResponse = {
   degraded: true,
 };
 
-export function quotaReply(): IdentifyResponse {
+export function quotaReply(quota: Quota): IdentifyResponse {
   return {
     candidates: [],
-    note: "You've used today's photo scans.",
+    note: quota.note,
     cached: false,
     quotaExceeded: true,
     // Weighing still works, always. The scale is the product; the camera is

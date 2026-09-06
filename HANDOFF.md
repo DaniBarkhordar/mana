@@ -156,7 +156,7 @@ What is still needed, and who to ask — the full list with wording is in `docs/
 3. ~~Settings: withdrawing consent as easy as giving it.~~ **Done.** Settings → Body composition is a switch; withdrawing asks "keep history" or "stop and delete". Delete turns every stored reading into weight-only and tombstones the composition observations; the weights stay. `AccountActions.stripComposition`, tested.
 4. ~~In-app account deletion calling `public.delete_my_account()`.~~ **Done.** Settings → Delete my account: the RPC, then sign-out, then a local wipe. Without a backend it is the local wipe.
 5. ~~CSV export of everything.~~ **Done.** Five CSVs (body measurements, observations, meals, components, consents) through the share sheet. `DataExporter`, tested for RFC 4180 quoting.
-6. RevenueCat: free tier and Plus. Mirror entitlements into `public.entitlements` from the webhook — **the app never decides its own tier**.
+6. ~~RevenueCat: free tier and Plus.~~ **Done.** `core/billing/entitlements.dart` over `purchases_flutter`, identified with the Supabase uid; a paywall screen reached from Settings and from a spent quota; `supabase/functions/revenuecat-webhook` mirrors grants and expiries into `public.entitlements`. The app never decides its own tier: the vision function meters from that table. Runbook §3b.
 7. ~~A separate, explicit consent before the first photo scan, naming the AI provider.~~ **Done.** `PhotoIdentifySheet` asks before the first scan and names the provider (`--dart-define=VISION_PROVIDER=...`, default "Anthropic (Claude)" to match the function's default provider); Settings → Photo recognition switches it, each flip a new consent row.
 8. ~~Keep the local database out of iCloud.~~ **Done.** Android in the manifest; iOS sets `NSURLIsExcludedFromBackupKey` on `mananu.sqlite` through the `com.mananu/files` channel in `AppDelegate.swift`, called from `AppDatabase.open()`. Verify on a device once (runbook §6).
 9. ~~Link the anonymous user to the real sign-in.~~ **Done.** Linking keeps the user id; when the identity already belongs to another account the app signs in as that account and re-keys this phone's rows into it (`adoptUser`). Tested with a fake backend.
@@ -259,7 +259,7 @@ Also implemented: Qingniu/QN (opcode `0x10`, weight `[3:5]` BE, stable `[5]`, R1
 
 ### Vision endpoint
 
-Model: a Flash-Lite class model. Image downscaled to 512 px on device before upload. Cached by SHA-256 of the image bytes plus hint, shared across users because the cache holds no personal data. Free tier 30 scans/day, Plus 400.
+Model: a Flash-Lite class model. Image downscaled to 512 px on device before upload. Cached by SHA-256 of the image bytes plus hint, shared across users because the cache holds no personal data. Free tier thirty scans a calendar month (as sold, runbook §7); Plus has a 400-a-day ceiling nobody reaches. Cache hits and empty answers never count.
 
 The prompt asks for identification only — name, 2–4 database search queries, cooked or raw, rough mass share, and any likely absorbed cooking fat. **It explicitly forbids the model from estimating grams, calories or macros.** Context sent alongside: local time, locale, measured grams if known, the user's recent foods. That context is worth more than a bigger model — a published benchmark found it cut calorie error by about 76 kcal on average.
 

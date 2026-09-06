@@ -18,6 +18,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../auth/auth_service.dart';
 import '../bia/body_composition.dart';
+import '../billing/entitlements.dart';
 import '../bia/equations.dart';
 import '../food/food_catalog.dart';
 import '../food/food_identifier.dart';
@@ -48,6 +49,14 @@ export '../auth/auth_service.dart'
         AuthService,
         IdentityProvider,
         SignInCancelled;
+export '../billing/entitlements.dart'
+    show
+        BillingConfig,
+        EntitlementService,
+        PlusOffer,
+        PlusPeriod,
+        PlusStatus,
+        PurchaseCancelled;
 export 'account_actions.dart' show AccountActions, DataExporter;
 export 'models.dart';
 export 'sync/sync_engine.dart' show SyncOutcome, SyncReport;
@@ -226,6 +235,36 @@ final accountActionsProvider = FutureProvider<AccountActions>((ref) async {
 final dataExporterProvider = FutureProvider<DataExporter>((ref) async {
   final s = await ref.watch(appServicesProvider.future);
   return DataExporter(s.db);
+});
+
+// ---------------------------------------------------------------------------
+// Plus
+// ---------------------------------------------------------------------------
+
+/// The store's view of Plus. Identified with the account's user id so the
+/// webhook can name the user and a purchase follows a sign-in to a new phone.
+final entitlementServiceProvider =
+    FutureProvider<EntitlementService>((ref) async {
+  final service = EntitlementService(
+    BillingConfig.isConfigured ? RevenueCatBackend() : const NoBillingBackend(),
+    enabled: BillingConfig.isConfigured,
+  );
+  ref.onDispose(service.dispose);
+  final account = await ref.watch(accountStatusProvider.future);
+  if (account.userId != null) {
+    try {
+      await service.identify(account.userId!);
+    } on Object {
+      // The store is unreachable; Plus reads as free until it is.
+    }
+  }
+  return service;
+});
+
+final plusStatusProvider = StreamProvider<PlusStatus>((ref) async* {
+  final service = await ref.watch(entitlementServiceProvider.future);
+  yield service.status;
+  yield* service.changes;
 });
 
 // ---------------------------------------------------------------------------

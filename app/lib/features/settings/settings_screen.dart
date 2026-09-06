@@ -6,6 +6,7 @@ import '../../core/scale/scale_driver.dart';
 import '../../theme/instruments.dart';
 import '../../theme/tokens.dart';
 import 'account_screen.dart';
+import 'paywall_screen.dart';
 import 'scale_pairing_sheet.dart';
 
 /// Settings.
@@ -73,6 +74,8 @@ class SettingsScreen extends ConsumerWidget {
                 child: Column(
                   children: [
                     const _AccountTile(),
+                    const Divider(height: 1),
+                    const _PlusTile(),
                     const Divider(height: 1),
                     const _BackupTile(),
                     const Divider(height: 1),
@@ -250,6 +253,42 @@ class _AccountTile extends ConsumerWidget {
       onTap: () => Navigator.of(context).push(
         MaterialPageRoute<void>(builder: (_) => const AccountScreen()),
       ),
+    );
+  }
+}
+
+/// Plus: what it is, whether it is on, and the way to the paywall.
+class _PlusTile extends ConsumerWidget {
+  const _PlusTile();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final plus = ref.watch(plusStatusProvider).valueOrNull ?? PlusStatus.free;
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(
+        horizontal: MananuSpacing.lg,
+        vertical: MananuSpacing.sm,
+      ),
+      leading: Icon(
+        plus.isPlus ? Icons.star : Icons.star_outline,
+        color: plus.isPlus
+            ? MananuColors.brass
+            : Theme.of(context).colorScheme.onSurface,
+        size: 21,
+      ),
+      title: const Text('Mananu Plus', style: MananuType.bodyStrong),
+      subtitle: Text(
+        plus.isPlus
+            ? 'Active. Unlimited photo scans, recipes and calibration.'
+            : 'Thirty photo scans a month are free. Plus removes the limit '
+                'and adds recipes and calibration.',
+        style: MananuType.caption,
+      ),
+      trailing: Icon(
+        Icons.chevron_right,
+        color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4),
+      ),
+      onTap: () => PaywallScreen.show(context),
     );
   }
 }

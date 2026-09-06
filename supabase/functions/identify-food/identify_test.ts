@@ -14,7 +14,9 @@ function assertStringIncludes(haystack: string, needle: string): void {
 import {
   buildUserPrompt,
   cacheKey,
-  DAILY_LIMIT,
+  FREE_MONTHLY_LIMIT,
+  PLUS_DAILY_CEILING,
+  quotaFor,
   modelFor,
   normalise,
   parseModelJson,
@@ -78,9 +80,17 @@ Deno.test("unreadable text is an honest empty result", () => {
 Deno.test("metering: tiers, limits and model choice", () => {
   assertEquals(tierOf("plus"), "plus");
   assertEquals(tierOf(undefined), "free");
-  assertEquals(DAILY_LIMIT.free, 30);
-  assertEquals(DAILY_LIMIT.plus, 400);
-  assertEquals(quotaReply().canStillWeigh, true);
+  assertEquals(FREE_MONTHLY_LIMIT, 30);
+  assertEquals(PLUS_DAILY_CEILING, 400);
+  const now = new Date("2026-09-06T08:15:00Z");
+  const free = quotaFor("free", now);
+  assertEquals(free.limit, 30);
+  assertEquals(free.since.toISOString(), "2026-09-01T00:00:00.000Z");
+  const plus = quotaFor("plus", now);
+  assertEquals(plus.limit, 400);
+  assertEquals(plus.since.toISOString(), "2026-09-06T00:00:00.000Z");
+  assertEquals(quotaReply(free).canStillWeigh, true);
+  assertStringIncludes(quotaReply(free).note ?? "", "30 free");
 
   const env = { ANTHROPIC_API_KEY: "k" };
   assertEquals(providerFor(env), "anthropic");

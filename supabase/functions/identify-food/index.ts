@@ -33,7 +33,6 @@ import { createClient } from "@supabase/supabase-js";
 import {
   buildUserPrompt,
   cacheKey,
-  DAILY_LIMIT,
   type IdentifyRequest,
   type IdentifyResponse,
   type IdentifyResult,
@@ -42,6 +41,7 @@ import {
   normalise,
   parseModelJson,
   providerFor,
+  quotaFor,
   quotaReply,
   SYSTEM_PROMPT,
   tierOf,
@@ -209,15 +209,16 @@ Deno.serve(async (request) => {
   }
 
   // ---- quota --------------------------------------------------------------
-  const since = new Date();
-  since.setUTCHours(0, 0, 0, 0);
+  // Thirty a month free, a daily ceiling on Plus (identify.ts). Cache hits
+  // never count, and neither do empty answers.
+  const quota = quotaFor(tier);
   const { count } = await supabase
     .from("vision_usage")
     .select("id", { count: "exact", head: true })
     .eq("user_id", user.id)
-    .gte("created_at", since.toISOString());
-  if ((count ?? 0) >= DAILY_LIMIT[tier]) {
-    return Response.json(quotaReply(), { status: 200 });
+    .gte("created_at", quota.since.toISOString());
+  if ((count ?? 0) >= quota.limit) {
+    return Response.json(quotaReply(quota), { status: 200 });
   }
 
   // ---- model --------------------------------------------------------------

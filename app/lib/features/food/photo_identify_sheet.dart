@@ -13,6 +13,7 @@ import '../../core/data/providers.dart';
 import '../../core/food/food_identifier.dart';
 import '../../core/nutrition/models.dart';
 import '../../theme/tokens.dart';
+import '../settings/paywall_screen.dart';
 
 /// What the sheet hands back. A food to weigh now, or a request to log
 /// cooking fat, plus the whole scan so the screen can offer the other
@@ -362,6 +363,18 @@ class _Results extends StatelessWidget {
                     ? MananuColors.warning
                     : scheme.onSurface.withValues(alpha: 0.6),
               ),
+            ),
+          ],
+          if (result.quotaExceeded) ...[
+            const SizedBox(height: MananuSpacing.md),
+            FilledButton.icon(
+              onPressed: () => PaywallScreen.show(
+                context,
+                reason: 'You have used this month\'s thirty free photo scans. '
+                    'Plus has no limit, and the scale always works.',
+              ),
+              icon: const Icon(Icons.star_outline),
+              label: const Text('Get Plus'),
             ),
           ],
           const SizedBox(height: MananuSpacing.lg),
