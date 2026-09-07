@@ -4,6 +4,7 @@ library;
 import 'package:drift/drift.dart';
 
 import '../../bia/equations.dart';
+import '../../nutrition/energy_target.dart';
 import '../db/database.dart';
 import '../models.dart';
 
@@ -28,13 +29,18 @@ class ProfileRepository {
     return row == null ? null : _fromRow(row);
   }
 
-  /// Creates or updates the profile and marks it for sync.
+  /// Creates or updates the profile and marks it for sync. A full write:
+  /// a goal field left out is stored as its default, not kept.
   Future<UserProfile> save({
     required double heightCm,
     required DateTime dateOfBirth,
     required Sex sex,
     required ActivityLevel activity,
     String? displayName,
+    GoalKind goal = GoalKind.maintain,
+    double? targetWeightKg,
+    double? paceKgPerWeek,
+    MacroSplit macroSplit = MacroSplit.balanced,
   }) async {
     final id = await _db.localUserId();
     final now = DateTime.now().toUtc();
@@ -49,6 +55,10 @@ class ProfileRepository {
             sex: Value(encodeSex(sex)),
             heightCm: Value(heightCm),
             activity: Value(encodeActivity(activity)),
+            goal: Value(encodeGoal(goal)),
+            targetWeightKg: Value(targetWeightKg),
+            paceKgPerWeek: Value(paceKgPerWeek),
+            macroSplit: Value(encodeMacroSplit(macroSplit)),
             createdAt: Value(existing?.createdAt ?? now),
             updatedAt: Value(now),
             syncedAt: const Value(null),
@@ -61,6 +71,33 @@ class ProfileRepository {
       sex: sex,
       activity: activity,
       displayName: displayName,
+      goal: goal,
+      targetWeightKg: targetWeightKg,
+      paceKgPerWeek: paceKgPerWeek,
+      macroSplit: macroSplit,
+    );
+  }
+
+  /// Rewrites only the goal fields, keeping the measurement inputs as they
+  /// are. What the Goals screen calls. Null when there is no profile yet.
+  Future<UserProfile?> saveGoal({
+    required GoalKind goal,
+    required double? targetWeightKg,
+    required double? paceKgPerWeek,
+    required MacroSplit macroSplit,
+  }) async {
+    final current = await currentProfile();
+    if (current == null) return null;
+    return save(
+      heightCm: current.heightCm,
+      dateOfBirth: current.dateOfBirth,
+      sex: current.sex,
+      activity: current.activity,
+      displayName: current.displayName,
+      goal: goal,
+      targetWeightKg: targetWeightKg,
+      paceKgPerWeek: paceKgPerWeek,
+      macroSplit: macroSplit,
     );
   }
 
@@ -121,6 +158,10 @@ class ProfileRepository {
       sex: sex,
       activity: decodeActivity(row.activity),
       displayName: row.displayName,
+      goal: decodeGoal(row.goal),
+      targetWeightKg: row.targetWeightKg,
+      paceKgPerWeek: row.paceKgPerWeek,
+      macroSplit: decodeMacroSplit(row.macroSplit),
     );
   }
 }

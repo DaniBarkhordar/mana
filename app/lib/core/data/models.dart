@@ -3,6 +3,7 @@
 library;
 
 import '../bia/equations.dart';
+import '../nutrition/energy_target.dart';
 import '../nutrition/models.dart';
 import '../nutrition/portion.dart';
 
@@ -15,6 +16,10 @@ class UserProfile {
     required this.sex,
     this.activity = ActivityLevel.lowActive,
     this.displayName,
+    this.goal = GoalKind.maintain,
+    this.targetWeightKg,
+    this.paceKgPerWeek,
+    this.macroSplit = MacroSplit.balanced,
   });
 
   final String id;
@@ -26,6 +31,16 @@ class UserProfile {
   final Sex sex;
   final ActivityLevel activity;
   final String? displayName;
+
+  /// What the daily target is shaped towards. See `nutrition/energy_target`.
+  final GoalKind goal;
+
+  /// Null when the goal is to maintain, or not chosen yet.
+  final double? targetWeightKg;
+
+  /// Kilograms a week, 0.25–1.0. Null means the default pace.
+  final double? paceKgPerWeek;
+  final MacroSplit macroSplit;
 
   int ageOn(DateTime day) {
     var age = day.year - dateOfBirth.year;
@@ -50,6 +65,10 @@ class UserProfile {
     Sex? sex,
     ActivityLevel? activity,
     String? displayName,
+    GoalKind? goal,
+    double? targetWeightKg,
+    double? paceKgPerWeek,
+    MacroSplit? macroSplit,
   }) =>
       UserProfile(
         id: id,
@@ -58,6 +77,10 @@ class UserProfile {
         sex: sex ?? this.sex,
         activity: activity ?? this.activity,
         displayName: displayName ?? this.displayName,
+        goal: goal ?? this.goal,
+        targetWeightKg: targetWeightKg ?? this.targetWeightKg,
+        paceKgPerWeek: paceKgPerWeek ?? this.paceKgPerWeek,
+        macroSplit: macroSplit ?? this.macroSplit,
       );
 }
 
@@ -150,6 +173,26 @@ ActivityLevel decodeActivity(String? s) => switch (s) {
       'active' => ActivityLevel.active,
       'very_active' => ActivityLevel.veryActive,
       _ => ActivityLevel.lowActive,
+    };
+
+String encodeGoal(GoalKind g) => g.name;
+
+GoalKind decodeGoal(String? s) => switch (s) {
+      'lose' => GoalKind.lose,
+      'gain' => GoalKind.gain,
+      _ => GoalKind.maintain,
+    };
+
+String encodeMacroSplit(MacroSplit m) => switch (m) {
+      MacroSplit.balanced => 'balanced',
+      MacroSplit.highProtein => 'high_protein',
+      MacroSplit.lowCarb => 'low_carb',
+    };
+
+MacroSplit decodeMacroSplit(String? s) => switch (s) {
+      'high_protein' => MacroSplit.highProtein,
+      'low_carb' => MacroSplit.lowCarb,
+      _ => MacroSplit.balanced,
     };
 
 String encodePortionMethod(PortionMethod m) => switch (m) {

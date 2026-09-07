@@ -77,6 +77,33 @@ class $ProfilesTable extends Profiles with TableInfo<$ProfilesTable, Profile> {
       type: DriftSqlType.string,
       requiredDuringInsert: false,
       defaultValue: const Constant('GB'));
+  static const VerificationMeta _goalMeta = const VerificationMeta('goal');
+  @override
+  late final GeneratedColumn<String> goal = GeneratedColumn<String>(
+      'goal', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant('maintain'));
+  static const VerificationMeta _targetWeightKgMeta =
+      const VerificationMeta('targetWeightKg');
+  @override
+  late final GeneratedColumn<double> targetWeightKg = GeneratedColumn<double>(
+      'target_weight_kg', aliasedName, true,
+      type: DriftSqlType.double, requiredDuringInsert: false);
+  static const VerificationMeta _paceKgPerWeekMeta =
+      const VerificationMeta('paceKgPerWeek');
+  @override
+  late final GeneratedColumn<double> paceKgPerWeek = GeneratedColumn<double>(
+      'pace_kg_per_week', aliasedName, true,
+      type: DriftSqlType.double, requiredDuringInsert: false);
+  static const VerificationMeta _macroSplitMeta =
+      const VerificationMeta('macroSplit');
+  @override
+  late final GeneratedColumn<String> macroSplit = GeneratedColumn<String>(
+      'macro_split', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant('balanced'));
   @override
   List<GeneratedColumn> get $columns => [
         createdAt,
@@ -89,7 +116,11 @@ class $ProfilesTable extends Profiles with TableInfo<$ProfilesTable, Profile> {
         heightCm,
         activity,
         units,
-        country
+        country,
+        goal,
+        targetWeightKg,
+        paceKgPerWeek,
+        macroSplit
       ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -154,6 +185,28 @@ class $ProfilesTable extends Profiles with TableInfo<$ProfilesTable, Profile> {
       context.handle(_countryMeta,
           country.isAcceptableOrUnknown(data['country']!, _countryMeta));
     }
+    if (data.containsKey('goal')) {
+      context.handle(
+          _goalMeta, goal.isAcceptableOrUnknown(data['goal']!, _goalMeta));
+    }
+    if (data.containsKey('target_weight_kg')) {
+      context.handle(
+          _targetWeightKgMeta,
+          targetWeightKg.isAcceptableOrUnknown(
+              data['target_weight_kg']!, _targetWeightKgMeta));
+    }
+    if (data.containsKey('pace_kg_per_week')) {
+      context.handle(
+          _paceKgPerWeekMeta,
+          paceKgPerWeek.isAcceptableOrUnknown(
+              data['pace_kg_per_week']!, _paceKgPerWeekMeta));
+    }
+    if (data.containsKey('macro_split')) {
+      context.handle(
+          _macroSplitMeta,
+          macroSplit.isAcceptableOrUnknown(
+              data['macro_split']!, _macroSplitMeta));
+    }
     return context;
   }
 
@@ -185,6 +238,14 @@ class $ProfilesTable extends Profiles with TableInfo<$ProfilesTable, Profile> {
           .read(DriftSqlType.string, data['${effectivePrefix}units'])!,
       country: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}country'])!,
+      goal: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}goal'])!,
+      targetWeightKg: attachedDatabase.typeMapping.read(
+          DriftSqlType.double, data['${effectivePrefix}target_weight_kg']),
+      paceKgPerWeek: attachedDatabase.typeMapping.read(
+          DriftSqlType.double, data['${effectivePrefix}pace_kg_per_week']),
+      macroSplit: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}macro_split'])!,
     );
   }
 
@@ -217,6 +278,12 @@ class Profile extends DataClass implements Insertable<Profile> {
   final String activity;
   final String units;
   final String country;
+  final String goal;
+  final double? targetWeightKg;
+
+  /// 0.25–1.0. Null means the default pace.
+  final double? paceKgPerWeek;
+  final String macroSplit;
   const Profile(
       {required this.createdAt,
       required this.updatedAt,
@@ -228,7 +295,11 @@ class Profile extends DataClass implements Insertable<Profile> {
       this.heightCm,
       required this.activity,
       required this.units,
-      required this.country});
+      required this.country,
+      required this.goal,
+      this.targetWeightKg,
+      this.paceKgPerWeek,
+      required this.macroSplit});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
@@ -253,6 +324,14 @@ class Profile extends DataClass implements Insertable<Profile> {
     map['activity'] = Variable<String>(activity);
     map['units'] = Variable<String>(units);
     map['country'] = Variable<String>(country);
+    map['goal'] = Variable<String>(goal);
+    if (!nullToAbsent || targetWeightKg != null) {
+      map['target_weight_kg'] = Variable<double>(targetWeightKg);
+    }
+    if (!nullToAbsent || paceKgPerWeek != null) {
+      map['pace_kg_per_week'] = Variable<double>(paceKgPerWeek);
+    }
+    map['macro_split'] = Variable<String>(macroSplit);
     return map;
   }
 
@@ -277,6 +356,14 @@ class Profile extends DataClass implements Insertable<Profile> {
       activity: Value(activity),
       units: Value(units),
       country: Value(country),
+      goal: Value(goal),
+      targetWeightKg: targetWeightKg == null && nullToAbsent
+          ? const Value.absent()
+          : Value(targetWeightKg),
+      paceKgPerWeek: paceKgPerWeek == null && nullToAbsent
+          ? const Value.absent()
+          : Value(paceKgPerWeek),
+      macroSplit: Value(macroSplit),
     );
   }
 
@@ -295,6 +382,10 @@ class Profile extends DataClass implements Insertable<Profile> {
       activity: serializer.fromJson<String>(json['activity']),
       units: serializer.fromJson<String>(json['units']),
       country: serializer.fromJson<String>(json['country']),
+      goal: serializer.fromJson<String>(json['goal']),
+      targetWeightKg: serializer.fromJson<double?>(json['targetWeightKg']),
+      paceKgPerWeek: serializer.fromJson<double?>(json['paceKgPerWeek']),
+      macroSplit: serializer.fromJson<String>(json['macroSplit']),
     );
   }
   @override
@@ -312,6 +403,10 @@ class Profile extends DataClass implements Insertable<Profile> {
       'activity': serializer.toJson<String>(activity),
       'units': serializer.toJson<String>(units),
       'country': serializer.toJson<String>(country),
+      'goal': serializer.toJson<String>(goal),
+      'targetWeightKg': serializer.toJson<double?>(targetWeightKg),
+      'paceKgPerWeek': serializer.toJson<double?>(paceKgPerWeek),
+      'macroSplit': serializer.toJson<String>(macroSplit),
     };
   }
 
@@ -326,7 +421,11 @@ class Profile extends DataClass implements Insertable<Profile> {
           Value<double?> heightCm = const Value.absent(),
           String? activity,
           String? units,
-          String? country}) =>
+          String? country,
+          String? goal,
+          Value<double?> targetWeightKg = const Value.absent(),
+          Value<double?> paceKgPerWeek = const Value.absent(),
+          String? macroSplit}) =>
       Profile(
         createdAt: createdAt ?? this.createdAt,
         updatedAt: updatedAt ?? this.updatedAt,
@@ -339,6 +438,12 @@ class Profile extends DataClass implements Insertable<Profile> {
         activity: activity ?? this.activity,
         units: units ?? this.units,
         country: country ?? this.country,
+        goal: goal ?? this.goal,
+        targetWeightKg:
+            targetWeightKg.present ? targetWeightKg.value : this.targetWeightKg,
+        paceKgPerWeek:
+            paceKgPerWeek.present ? paceKgPerWeek.value : this.paceKgPerWeek,
+        macroSplit: macroSplit ?? this.macroSplit,
       );
   Profile copyWithCompanion(ProfilesCompanion data) {
     return Profile(
@@ -355,6 +460,15 @@ class Profile extends DataClass implements Insertable<Profile> {
       activity: data.activity.present ? data.activity.value : this.activity,
       units: data.units.present ? data.units.value : this.units,
       country: data.country.present ? data.country.value : this.country,
+      goal: data.goal.present ? data.goal.value : this.goal,
+      targetWeightKg: data.targetWeightKg.present
+          ? data.targetWeightKg.value
+          : this.targetWeightKg,
+      paceKgPerWeek: data.paceKgPerWeek.present
+          ? data.paceKgPerWeek.value
+          : this.paceKgPerWeek,
+      macroSplit:
+          data.macroSplit.present ? data.macroSplit.value : this.macroSplit,
     );
   }
 
@@ -371,14 +485,32 @@ class Profile extends DataClass implements Insertable<Profile> {
           ..write('heightCm: $heightCm, ')
           ..write('activity: $activity, ')
           ..write('units: $units, ')
-          ..write('country: $country')
+          ..write('country: $country, ')
+          ..write('goal: $goal, ')
+          ..write('targetWeightKg: $targetWeightKg, ')
+          ..write('paceKgPerWeek: $paceKgPerWeek, ')
+          ..write('macroSplit: $macroSplit')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(createdAt, updatedAt, syncedAt, id,
-      displayName, dateOfBirth, sex, heightCm, activity, units, country);
+  int get hashCode => Object.hash(
+      createdAt,
+      updatedAt,
+      syncedAt,
+      id,
+      displayName,
+      dateOfBirth,
+      sex,
+      heightCm,
+      activity,
+      units,
+      country,
+      goal,
+      targetWeightKg,
+      paceKgPerWeek,
+      macroSplit);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -393,7 +525,11 @@ class Profile extends DataClass implements Insertable<Profile> {
           other.heightCm == this.heightCm &&
           other.activity == this.activity &&
           other.units == this.units &&
-          other.country == this.country);
+          other.country == this.country &&
+          other.goal == this.goal &&
+          other.targetWeightKg == this.targetWeightKg &&
+          other.paceKgPerWeek == this.paceKgPerWeek &&
+          other.macroSplit == this.macroSplit);
 }
 
 class ProfilesCompanion extends UpdateCompanion<Profile> {
@@ -408,6 +544,10 @@ class ProfilesCompanion extends UpdateCompanion<Profile> {
   final Value<String> activity;
   final Value<String> units;
   final Value<String> country;
+  final Value<String> goal;
+  final Value<double?> targetWeightKg;
+  final Value<double?> paceKgPerWeek;
+  final Value<String> macroSplit;
   final Value<int> rowid;
   const ProfilesCompanion({
     this.createdAt = const Value.absent(),
@@ -421,6 +561,10 @@ class ProfilesCompanion extends UpdateCompanion<Profile> {
     this.activity = const Value.absent(),
     this.units = const Value.absent(),
     this.country = const Value.absent(),
+    this.goal = const Value.absent(),
+    this.targetWeightKg = const Value.absent(),
+    this.paceKgPerWeek = const Value.absent(),
+    this.macroSplit = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   ProfilesCompanion.insert({
@@ -435,6 +579,10 @@ class ProfilesCompanion extends UpdateCompanion<Profile> {
     this.activity = const Value.absent(),
     this.units = const Value.absent(),
     this.country = const Value.absent(),
+    this.goal = const Value.absent(),
+    this.targetWeightKg = const Value.absent(),
+    this.paceKgPerWeek = const Value.absent(),
+    this.macroSplit = const Value.absent(),
     this.rowid = const Value.absent(),
   })  : createdAt = Value(createdAt),
         updatedAt = Value(updatedAt),
@@ -451,6 +599,10 @@ class ProfilesCompanion extends UpdateCompanion<Profile> {
     Expression<String>? activity,
     Expression<String>? units,
     Expression<String>? country,
+    Expression<String>? goal,
+    Expression<double>? targetWeightKg,
+    Expression<double>? paceKgPerWeek,
+    Expression<String>? macroSplit,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -465,6 +617,10 @@ class ProfilesCompanion extends UpdateCompanion<Profile> {
       if (activity != null) 'activity': activity,
       if (units != null) 'units': units,
       if (country != null) 'country': country,
+      if (goal != null) 'goal': goal,
+      if (targetWeightKg != null) 'target_weight_kg': targetWeightKg,
+      if (paceKgPerWeek != null) 'pace_kg_per_week': paceKgPerWeek,
+      if (macroSplit != null) 'macro_split': macroSplit,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -481,6 +637,10 @@ class ProfilesCompanion extends UpdateCompanion<Profile> {
       Value<String>? activity,
       Value<String>? units,
       Value<String>? country,
+      Value<String>? goal,
+      Value<double?>? targetWeightKg,
+      Value<double?>? paceKgPerWeek,
+      Value<String>? macroSplit,
       Value<int>? rowid}) {
     return ProfilesCompanion(
       createdAt: createdAt ?? this.createdAt,
@@ -494,6 +654,10 @@ class ProfilesCompanion extends UpdateCompanion<Profile> {
       activity: activity ?? this.activity,
       units: units ?? this.units,
       country: country ?? this.country,
+      goal: goal ?? this.goal,
+      targetWeightKg: targetWeightKg ?? this.targetWeightKg,
+      paceKgPerWeek: paceKgPerWeek ?? this.paceKgPerWeek,
+      macroSplit: macroSplit ?? this.macroSplit,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -534,6 +698,18 @@ class ProfilesCompanion extends UpdateCompanion<Profile> {
     if (country.present) {
       map['country'] = Variable<String>(country.value);
     }
+    if (goal.present) {
+      map['goal'] = Variable<String>(goal.value);
+    }
+    if (targetWeightKg.present) {
+      map['target_weight_kg'] = Variable<double>(targetWeightKg.value);
+    }
+    if (paceKgPerWeek.present) {
+      map['pace_kg_per_week'] = Variable<double>(paceKgPerWeek.value);
+    }
+    if (macroSplit.present) {
+      map['macro_split'] = Variable<String>(macroSplit.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -554,6 +730,10 @@ class ProfilesCompanion extends UpdateCompanion<Profile> {
           ..write('activity: $activity, ')
           ..write('units: $units, ')
           ..write('country: $country, ')
+          ..write('goal: $goal, ')
+          ..write('targetWeightKg: $targetWeightKg, ')
+          ..write('paceKgPerWeek: $paceKgPerWeek, ')
+          ..write('macroSplit: $macroSplit, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -7012,6 +7192,10 @@ typedef $$ProfilesTableCreateCompanionBuilder = ProfilesCompanion Function({
   Value<String> activity,
   Value<String> units,
   Value<String> country,
+  Value<String> goal,
+  Value<double?> targetWeightKg,
+  Value<double?> paceKgPerWeek,
+  Value<String> macroSplit,
   Value<int> rowid,
 });
 typedef $$ProfilesTableUpdateCompanionBuilder = ProfilesCompanion Function({
@@ -7026,6 +7210,10 @@ typedef $$ProfilesTableUpdateCompanionBuilder = ProfilesCompanion Function({
   Value<String> activity,
   Value<String> units,
   Value<String> country,
+  Value<String> goal,
+  Value<double?> targetWeightKg,
+  Value<double?> paceKgPerWeek,
+  Value<String> macroSplit,
   Value<int> rowid,
 });
 
@@ -7070,6 +7258,19 @@ class $$ProfilesTableFilterComposer
 
   ColumnFilters<String> get country => $composableBuilder(
       column: $table.country, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get goal => $composableBuilder(
+      column: $table.goal, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get targetWeightKg => $composableBuilder(
+      column: $table.targetWeightKg,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get paceKgPerWeek => $composableBuilder(
+      column: $table.paceKgPerWeek, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get macroSplit => $composableBuilder(
+      column: $table.macroSplit, builder: (column) => ColumnFilters(column));
 }
 
 class $$ProfilesTableOrderingComposer
@@ -7113,6 +7314,20 @@ class $$ProfilesTableOrderingComposer
 
   ColumnOrderings<String> get country => $composableBuilder(
       column: $table.country, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get goal => $composableBuilder(
+      column: $table.goal, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<double> get targetWeightKg => $composableBuilder(
+      column: $table.targetWeightKg,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<double> get paceKgPerWeek => $composableBuilder(
+      column: $table.paceKgPerWeek,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get macroSplit => $composableBuilder(
+      column: $table.macroSplit, builder: (column) => ColumnOrderings(column));
 }
 
 class $$ProfilesTableAnnotationComposer
@@ -7156,6 +7371,18 @@ class $$ProfilesTableAnnotationComposer
 
   GeneratedColumn<String> get country =>
       $composableBuilder(column: $table.country, builder: (column) => column);
+
+  GeneratedColumn<String> get goal =>
+      $composableBuilder(column: $table.goal, builder: (column) => column);
+
+  GeneratedColumn<double> get targetWeightKg => $composableBuilder(
+      column: $table.targetWeightKg, builder: (column) => column);
+
+  GeneratedColumn<double> get paceKgPerWeek => $composableBuilder(
+      column: $table.paceKgPerWeek, builder: (column) => column);
+
+  GeneratedColumn<String> get macroSplit => $composableBuilder(
+      column: $table.macroSplit, builder: (column) => column);
 }
 
 class $$ProfilesTableTableManager extends RootTableManager<
@@ -7192,6 +7419,10 @@ class $$ProfilesTableTableManager extends RootTableManager<
             Value<String> activity = const Value.absent(),
             Value<String> units = const Value.absent(),
             Value<String> country = const Value.absent(),
+            Value<String> goal = const Value.absent(),
+            Value<double?> targetWeightKg = const Value.absent(),
+            Value<double?> paceKgPerWeek = const Value.absent(),
+            Value<String> macroSplit = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               ProfilesCompanion(
@@ -7206,6 +7437,10 @@ class $$ProfilesTableTableManager extends RootTableManager<
             activity: activity,
             units: units,
             country: country,
+            goal: goal,
+            targetWeightKg: targetWeightKg,
+            paceKgPerWeek: paceKgPerWeek,
+            macroSplit: macroSplit,
             rowid: rowid,
           ),
           createCompanionCallback: ({
@@ -7220,6 +7455,10 @@ class $$ProfilesTableTableManager extends RootTableManager<
             Value<String> activity = const Value.absent(),
             Value<String> units = const Value.absent(),
             Value<String> country = const Value.absent(),
+            Value<String> goal = const Value.absent(),
+            Value<double?> targetWeightKg = const Value.absent(),
+            Value<double?> paceKgPerWeek = const Value.absent(),
+            Value<String> macroSplit = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               ProfilesCompanion.insert(
@@ -7234,6 +7473,10 @@ class $$ProfilesTableTableManager extends RootTableManager<
             activity: activity,
             units: units,
             country: country,
+            goal: goal,
+            targetWeightKg: targetWeightKg,
+            paceKgPerWeek: paceKgPerWeek,
+            macroSplit: macroSplit,
             rowid: rowid,
           ),
           withReferenceMapper: (p0) => p0

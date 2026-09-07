@@ -152,11 +152,21 @@ class AppDatabase extends _$AppDatabase {
   static String newId() => _uuid.v4();
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
         onCreate: (m) => m.createAll(),
+        onUpgrade: (m, from, to) async {
+          // 2: the goal columns on profiles (0004_goals.sql). Additive, with
+          // defaults, so an existing profile carries on as "maintain".
+          if (from < 2) {
+            await m.addColumn(profiles, profiles.goal);
+            await m.addColumn(profiles, profiles.targetWeightKg);
+            await m.addColumn(profiles, profiles.paceKgPerWeek);
+            await m.addColumn(profiles, profiles.macroSplit);
+          }
+        },
         beforeOpen: (details) async {
           await customStatement('PRAGMA foreign_keys = ON');
         },

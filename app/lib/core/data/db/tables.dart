@@ -44,6 +44,16 @@ class Profiles extends Table with SyncColumns {
   TextColumn get units => text().withDefault(const Constant('metric'))();
   TextColumn get country => text().withDefault(const Constant('GB'))();
 
+  // The goal (0004_goals.sql). What the daily target is shaped towards;
+  // the target itself is recomputed from the latest reading, never stored
+  // here.
+  TextColumn get goal => text().withDefault(const Constant('maintain'))();
+  RealColumn get targetWeightKg => real().nullable()();
+
+  /// 0.25–1.0. Null means the default pace.
+  RealColumn get paceKgPerWeek => real().nullable()();
+  TextColumn get macroSplit => text().withDefault(const Constant('balanced'))();
+
   @override
   Set<Column<Object>> get primaryKey => {id};
 }
