@@ -32,3 +32,6 @@ Thumbs.db
 # Python bytecode from the data-build scripts
 __pycache__/
 *.pyc
+
+# Agent worktrees
+.claude/worktrees/
