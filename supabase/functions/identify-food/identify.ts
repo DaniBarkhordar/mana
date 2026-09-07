@@ -229,8 +229,15 @@ export interface VisionEnv {
   VISION_MODEL_FREE?: string;
 }
 
+/**
+ * Defaults chosen for cost-effectiveness, as the founder asked: a strong
+ * vision model that is not the most expensive. Claude Sonnet 5 identifies a
+ * plate as well as this task needs at roughly a third of a penny per scan;
+ * `claude-opus-5` is a VISION_MODEL away when quality on hard plates is worth
+ * three times that (runbook §3 has the table).
+ */
 export const DEFAULT_MODEL: Record<Provider, string> = {
-  anthropic: "claude-opus-5",
+  anthropic: "claude-sonnet-5",
   gemini: "gemini-2.5-flash-lite",
 };
 

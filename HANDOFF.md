@@ -262,7 +262,7 @@ Also implemented: Qingniu/QN (opcode `0x10`, weight `[3:5]` BE, stable `[5]`, R1
 
 ### Vision endpoint
 
-Model: a Flash-Lite class model. Image downscaled to 512 px on device before upload. Cached by SHA-256 of the image bytes plus hint, shared across users because the cache holds no personal data. Free tier thirty scans a calendar month (as sold, runbook §7); Plus has a 400-a-day ceiling nobody reaches. Cache hits and empty answers never count.
+Model: Claude Sonnet 5 by default (cost-effective, strong at recognition), Opus or Haiku by env, Gemini selectable. Image downscaled to 512 px on device before upload. Cached by SHA-256 of the image bytes plus hint, shared across users because the cache holds no personal data. Free tier thirty scans a calendar month (as sold, runbook §7); Plus has a 400-a-day ceiling nobody reaches. Cache hits and empty answers never count.
 
 The prompt asks for identification only — name, 2–4 database search queries, cooked or raw, rough mass share, and any likely absorbed cooking fat. **It explicitly forbids the model from estimating grams, calories or macros.** Context sent alongside: local time, locale, measured grams if known, the user's recent foods. That context is worth more than a bigger model — a published benchmark found it cut calorie error by about 76 kcal on average.
 

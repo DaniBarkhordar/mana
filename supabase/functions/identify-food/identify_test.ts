@@ -98,8 +98,8 @@ Deno.test("metering: tiers, limits and model choice", () => {
   assertEquals(providerFor({ GEMINI_API_KEY: "g", VISION_PROVIDER: "anthropic" }), null);
   assertEquals(providerFor({}), null);
 
-  assertEquals(modelFor(env, "anthropic", "plus"), "claude-opus-5");
-  assertEquals(modelFor(env, "anthropic", "free"), "claude-opus-5");
+  assertEquals(modelFor(env, "anthropic", "plus"), "claude-sonnet-5");
+  assertEquals(modelFor(env, "anthropic", "free"), "claude-sonnet-5");
   const split = { ...env, VISION_MODEL: "claude-opus-5", VISION_MODEL_FREE: "claude-haiku-4-5" };
   assertEquals(modelFor(split, "anthropic", "free"), "claude-haiku-4-5");
   assertEquals(modelFor(split, "anthropic", "plus"), "claude-opus-5");

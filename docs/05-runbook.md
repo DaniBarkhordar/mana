@@ -58,20 +58,21 @@ The function serves whichever key is present, Anthropic first. Everything else i
 | Secret | Default | Meaning |
 |---|---|---|
 | `VISION_PROVIDER` | `anthropic` if its key is set, else `gemini` | Force one provider |
-| `VISION_MODEL` | `claude-opus-5` / `gemini-2.5-flash-lite` | Model for every request |
+| `VISION_MODEL` | `claude-sonnet-5` / `gemini-2.5-flash-lite` | Model for every request. Sonnet 5 is the deliberate default: strong at recognition, not the most expensive |
 | `VISION_MODEL_FREE` | same as `VISION_MODEL` | A cheaper model for the free tier only; tier comes from `public.entitlements`, never from the app |
 
 Build the app with a matching `--dart-define=VISION_PROVIDER="Anthropic (Claude)"` (the default) or `"Google (Gemini)"` — that string is what the consent sheet shows, and it has to be true.
 
 **What a scan costs.** The photo is 512 px on its longest edge before upload, which on Claude is a few hundred image tokens; the system prompt is about 600 tokens and the answer about 250. Per identification, at the list prices in `shared` API pricing (June 2026), before the cache:
 
-| Model | Per scan | 30 free scans a day, all month | Typical (3 a day) |
+| Model | Per scan | Free tier worst case (30 a month) | Plus, heavy (10 a day) |
 |---|---|---|---|
-| `claude-opus-5` ($5 / $25 per MTok) | ≈ $0.011 | ≈ $10 | ≈ $1.00 |
-| `claude-haiku-4-5` ($1 / $5 per MTok) | ≈ $0.002 | ≈ $2 | ≈ $0.20 |
-| `gemini-2.5-flash-lite` | ≈ $0.0005 | ≈ $0.45 | ≈ $0.05 |
+| `claude-opus-5` ($5 / $25 per MTok) | ≈ $0.011 | ≈ $0.33 | ≈ $3.30 |
+| **`claude-sonnet-5`** ($2 / $10 per MTok) — default | ≈ $0.0035 | ≈ $0.11 | ≈ $1.05 |
+| `claude-haiku-4-5` ($1 / $5 per MTok) | ≈ $0.002 | ≈ $0.06 | ≈ $0.60 |
+| `gemini-2.5-flash-lite` | ≈ $0.0005 | ≈ $0.02 | ≈ $0.15 |
 
-The cache (same bytes, same hint, same model) makes repeat plates free, and empty answers are never charged against the quota. Plus at £4.99 a month covers Opus on every realistic pattern; the free tier's worst case is the number to watch. The lever is `VISION_MODEL_FREE=claude-haiku-4-5`: Plus keeps the strongest model, the free tier runs the economical one, and the app's consent text stays truthful because both are Anthropic. Pure logic (prompt, schema, metering, cache key) is under test:
+The cache (same bytes, same hint, same model) makes repeat plates free, and empty answers are never charged against the quota. On Sonnet 5 the free tier costs pennies per user per month and Plus at £4.99 covers ten scans a day with margin. Two levers if the numbers move: `VISION_MODEL=claude-opus-5` for Plus when the hardest plates matter, and `VISION_MODEL_FREE=claude-haiku-4-5` to run the free tier on the most economical Claude; both keep the app's consent text truthful because every option is Anthropic. Pure logic (prompt, schema, metering, cache key) is under test:
 
 ```bash
 cd supabase/functions/identify-food
