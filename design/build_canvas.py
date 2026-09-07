@@ -1076,7 +1076,7 @@ def main():
         "artboards": layout,
         "annotations": [
             {"id": "note-brief", "x": 0, "y": -150, "w": 440,
-             "text": "Mananu — app screens. Every value comes from app/lib/theme/tokens.dart: Inter, 14 px cards, 54 px buttons, brass on paper. Green is reserved for weighed values and tan for estimated ones; nothing else uses those two colours.\nToday, Body and Settings show the whole scrolled page; the phone shows the top 844 px."},
+             "text": "Mananu — app screens. Every value comes from app/lib/theme/tokens.dart: Instrument Sans, 14 px cards, 54 px buttons, brass on paper. Green is reserved for weighed values and tan for estimated ones; nothing else uses those two colours.\nToday, Body and Settings show the whole scrolled page; the phone shows the top 844 px."},
             {"id": "note-photo", "x": 1410, "y": -110, "w": 390,
              "text": "Photo scan: the model only says WHAT is on the plate. Every candidate is matched to the food database; the grams come from the scale when the user captures. No quantity is ever asked of the photo."},
             {"id": "note-body", "x": 2350, "y": -110, "w": 390,

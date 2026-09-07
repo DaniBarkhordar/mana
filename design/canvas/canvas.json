@@ -119,7 +119,7 @@
       "x": 0,
       "y": -150,
       "w": 440,
-      "text": "Mananu \u2014 app screens. Every value comes from app/lib/theme/tokens.dart: Inter, 14 px cards, 54 px buttons, brass on paper. Green is reserved for weighed values and tan for estimated ones; nothing else uses those two colours.\nToday, Body and Settings show the whole scrolled page; the phone shows the top 844 px."
+      "text": "Mananu \u2014 app screens. Every value comes from app/lib/theme/tokens.dart: Instrument Sans, 14 px cards, 54 px buttons, brass on paper. Green is reserved for weighed values and tan for estimated ones; nothing else uses those two colours.\nToday, Body and Settings show the whole scrolled page; the phone shows the top 844 px."
     },
     {
       "id": "note-photo",
