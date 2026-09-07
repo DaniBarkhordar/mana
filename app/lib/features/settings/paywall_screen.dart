@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/data/providers.dart';
+import '../../core/legal.dart';
 import '../../theme/instruments.dart';
 import '../../theme/tokens.dart';
 
@@ -205,6 +206,10 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
               color: scheme.onSurface.withValues(alpha: 0.45),
             ),
           ),
+          const SizedBox(height: MananuSpacing.sm),
+          // Guideline 3.1.2: a paywall carries links to the terms and the
+          // privacy policy. Reviewers look for them here specifically.
+          const LegalLinks(),
         ],
       ),
     );
