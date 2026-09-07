@@ -6,6 +6,7 @@ import 'features/body/body_screen.dart';
 import 'features/food/weigh_food_screen.dart';
 import 'features/home/today_screen.dart';
 import 'features/onboarding/onboarding_screen.dart';
+import 'features/progress/progress_screen.dart';
 import 'features/settings/settings_screen.dart';
 import 'theme/instruments.dart';
 import 'theme/tokens.dart';
@@ -60,6 +61,7 @@ class _MananuShellState extends ConsumerState<MananuShell> {
   static const _tabs = <Widget>[
     TodayScreen(),
     BodyScreen(),
+    ProgressScreen(),
     SettingsScreen(),
   ];
 
@@ -102,6 +104,11 @@ class _MananuShellState extends ConsumerState<MananuShell> {
             icon: Icon(Icons.monitor_weight_outlined),
             selectedIcon: Icon(Icons.monitor_weight),
             label: 'Body',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.insights_outlined),
+            selectedIcon: Icon(Icons.insights),
+            label: 'Progress',
           ),
           NavigationDestination(
             icon: Icon(Icons.settings_outlined),

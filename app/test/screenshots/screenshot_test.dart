@@ -180,6 +180,24 @@ void main() {
     await shutDown(tester);
   });
 
+  testWidgets('progress', (tester) async {
+    await phone(tester);
+    await tester.runAsync(() => _seedWeek(services));
+    await tester
+        .pumpWidget(app(home: const RepaintBoundary(child: MananuRoot())));
+    for (var i = 0; i < 10; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    await tester.tap(
+      find.descendant(
+        of: find.byType(NavigationBar),
+        matching: find.text('Progress'),
+      ),
+    );
+    await shoot(tester, 'progress');
+    await shutDown(tester);
+  });
+
   testWidgets('weigh food', (tester) async {
     await phone(tester);
     await tester.pumpWidget(
@@ -406,6 +424,91 @@ Future<void> _seed(AppServices s) async {
       result: engine.evaluate(input: input, takenAt: at),
       input: input,
       source: 'simulated_scale',
+    );
+  }
+}
+
+/// The six days before today, so the week's bars, averages and streak are
+/// populated, plus a fortnight of sleep and steps so the wearables card
+/// renders. Today itself comes from [_seed].
+Future<void> _seedWeek(AppServices s) async {
+  final now = DateTime.now();
+  final today = DateTime(now.year, now.month, now.day);
+  for (var d = 6; d >= 1; d--) {
+    final day = today.subtract(Duration(days: d));
+    final breakfast = WeighSession()
+      ..addTared(food: _oats, grams: 55 + d * 3)
+      ..addTared(food: _yogurt, grams: 150);
+    await s.meals.logMeal(
+      components: breakfast.components,
+      eatenAt: day.add(const Duration(hours: 7, minutes: 40)),
+      slot: MealSlot.breakfast,
+    );
+    final lunch = WeighSession()
+      ..addTared(food: _chicken, grams: 150 + d * 5)
+      ..addTared(food: _rice, grams: 70 + d * 2);
+    await s.meals.logMeal(
+      components: lunch.components,
+      eatenAt: day.add(const Duration(hours: 12, minutes: 55)),
+      slot: MealSlot.lunch,
+    );
+    // A weekend meal out, estimated: the weighed share is honest, not 100%.
+    if (d == 2 || d == 5) {
+      final dinner = WeighSession()
+        ..addUnweighed(
+          food: _apple,
+          grams: 420,
+          method: PortionMethod.photoEstimate,
+        );
+      await s.meals.logMeal(
+        components: dinner.components,
+        eatenAt: day.add(const Duration(hours: 19, minutes: 30)),
+        slot: MealSlot.dinner,
+      );
+    } else {
+      final dinner = WeighSession()
+        ..addTared(food: _chicken, grams: 180)
+        ..addTared(food: _rice, grams: 80)
+        ..addCookingFat(
+          const CookingFatCapture(
+            fat: _oil,
+            gramsAdded: 12,
+            gramsRemaining: 2,
+            portions: 2,
+          ),
+        );
+      await s.meals.logMeal(
+        components: dinner.components,
+        eatenAt: day.add(const Duration(hours: 19, minutes: 15)),
+        slot: MealSlot.dinner,
+      );
+    }
+  }
+  for (var d = 13; d >= 0; d--) {
+    final at = today.add(const Duration(hours: 12)).subtract(Duration(days: d));
+    await s.observations.record(
+      kind: 'sleep_minutes',
+      value: 410 + (d % 4) * 15,
+      unit: 'min',
+      source: 'apple_health',
+      takenAt: at,
+      method: 'imported',
+    );
+    await s.observations.record(
+      kind: 'resting_hr_bpm',
+      value: 54 + (d % 3),
+      unit: 'bpm',
+      source: 'apple_health',
+      takenAt: at,
+      method: 'imported',
+    );
+    await s.observations.record(
+      kind: 'steps',
+      value: 7200 + (d % 5) * 900,
+      unit: 'count',
+      source: 'apple_health',
+      takenAt: at,
+      method: 'imported',
     );
   }
 }
