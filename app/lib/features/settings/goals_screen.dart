@@ -23,6 +23,9 @@ class GoalsScreen extends ConsumerStatefulWidget {
 }
 
 class _GoalsScreenState extends ConsumerState<GoalsScreen> {
+  /// Used only for the preview above when no weight exists at all.
+  static const double _previewWeightKg = 75;
+
   /// Local copy of the goal fields, so a slider moves freely and the target
   /// follows it on the same frame; the database catches up on release.
   GoalKind? _goal;
@@ -61,7 +64,11 @@ class _GoalsScreenState extends ConsumerState<GoalsScreen> {
     }
     _adopt(profile);
     final goal = _goal!;
-    final weightKg = ref.watch(targetWeightBasisProvider);
+    final knownWeightKg = ref.watch(targetWeightBasisProvider);
+    // Only an install that skipped the weight step has no figure at all. The
+    // preview then says plainly what it is sized from; Today shows no target
+    // until a real weight exists (see dailyTargetProvider).
+    final weightKg = knownWeightKg ?? _previewWeightKg;
     final latest = ref.watch(latestBodyMeasurementProvider);
     final targetKg = goal == GoalKind.maintain
         ? null
@@ -102,13 +109,18 @@ class _GoalsScreenState extends ConsumerState<GoalsScreen> {
                     TargetSummary(target: target, compact: true),
                     const SizedBox(height: MananuSpacing.md),
                     Text(
-                      latest == null
-                          ? 'Sized from ${weightKg.toStringAsFixed(1)} kg, '
-                              'as typed in. This will move as your weight '
-                              'does: the first reading takes over.'
-                          : 'Sized from your latest reading, '
+                      latest != null
+                          ? 'Sized from your latest reading, '
                               '${latest.weightKg.toStringAsFixed(1)} kg. '
-                              'This will move as your weight does.',
+                              'This will move as your weight does.'
+                          : knownWeightKg != null
+                              ? 'Sized from ${weightKg.toStringAsFixed(1)} kg, '
+                                  'as typed in. This will move as your weight '
+                                  'does: the first reading takes over.'
+                              : 'A preview sized from $_previewWeightKg kg, '
+                                  'because no weight has been entered yet. '
+                                  'Today shows no target until you step on '
+                                  'the scale.',
                       style: MananuType.caption.copyWith(color: muted),
                     ),
                   ],

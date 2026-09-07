@@ -801,12 +801,13 @@ final latestWeightObservationProvider = StreamProvider<double?>((ref) async* {
 });
 
 /// The weight the target is sized from: the latest reading, else the
-/// self-reported figure from onboarding, else a placeholder so the screen
-/// is never empty.
-final targetWeightBasisProvider = Provider<double>((ref) {
+/// self-reported figure from onboarding. Null when neither exists; a target
+/// sized from an invented weight would be a number with no provenance, so
+/// Today shows no target rather than a plausible wrong one.
+final targetWeightBasisProvider = Provider<double?>((ref) {
   final latest = ref.watch(latestBodyMeasurementProvider);
   if (latest != null) return latest.weightKg;
-  return ref.watch(latestWeightObservationProvider).valueOrNull ?? 75;
+  return ref.watch(latestWeightObservationProvider).valueOrNull;
 });
 
 /// Today's target. Derived from the most recent body measurement when there is
@@ -817,10 +818,12 @@ final targetWeightBasisProvider = Provider<double>((ref) {
 final dailyTargetProvider = Provider<EnergyTarget?>((ref) {
   final profile = ref.watch(userProfileProvider).valueOrNull;
   if (profile == null) return null;
+  final weightKg = ref.watch(targetWeightBasisProvider);
+  if (weightKg == null) return null;
   return energyTargetFor(
     profile: profile,
     latest: ref.watch(latestBodyMeasurementProvider),
-    weightKg: ref.watch(targetWeightBasisProvider),
+    weightKg: weightKg,
   );
 });
 
