@@ -86,22 +86,64 @@ void main() {
     await pumpApp(tester);
     await settle(tester);
 
-    // Page 1 → 2.
+    // Welcome → about you.
     await tester.tap(find.text('Continue'));
     await settle(tester);
     // Sex is required before the page can advance.
+    expect(find.text('About you'), findsOneWidget);
     await tester.tap(find.text('Male'));
     await tester.pump();
     await tester.tap(find.text('Continue'));
     await settle(tester);
+    // Goal: nothing chosen yet, so Continue is held until a card is tapped.
+    expect(find.text('What are you here for?'), findsOneWidget);
+    expect(
+      tester.widget<FilledButton>(find.byType(FilledButton)).onPressed,
+      isNull,
+    );
+    await tester.tap(find.text('Lose weight'));
+    await tester.pump();
+    await tester.tap(find.text('Continue'));
+    await settle(tester);
+    // Target and pace: the defaults are five kilos down at half a kilo a
+    // week, with the date that implies.
+    expect(find.text('TARGET WEIGHT'), findsOneWidget);
+    expect(find.text('0.5 kg a week — steady'), findsOneWidget);
+    expect(find.text('About 10 weeks'), findsOneWidget);
+    await tester.tap(find.text('Continue'));
+    await settle(tester);
     // Activity page.
+    expect(find.text('How active are you?'), findsOneWidget);
     await tester.tap(find.text('Continue'));
     await settle(tester);
     // Consent page: the box sits below the fold on a phone, so scroll to it.
+    expect(find.text('Your body data'), findsOneWidget);
     await tester.ensureVisible(find.byType(CheckboxListTile));
     await tester.pump();
     await tester.tap(find.byType(CheckboxListTile));
     await tester.pump();
+    await tester.tap(find.text('Continue'));
+    await settle(tester);
+    // Summary: 175 cm, 35, male, 75 kg, low active, 0.5 kg a week.
+    //   Mifflin-St Jeor 9.99(75) + 6.25(175) - 4.92(35) + 166 - 161
+    //     = 749.25 + 1093.75 - 172.2 + 5 = 1675.8
+    //   × 1.65 = 2765.07; less 550 = 2215.07 → 2,215.
+    // The number rolls to its value over half a second; let it land.
+    await tester.pump(const Duration(milliseconds: 600));
+    expect(find.text('Your starting point'), findsOneWidget);
+    expect(find.text('2,215'), findsOneWidget);
+    expect(find.textContaining('Mifflin-St Jeor 1990'), findsOneWidget);
+    // The note sits under the gauge card, below the fold on a phone.
+    await tester.dragUntilVisible(
+      find.textContaining('This will move as your weight does'),
+      find.byType(ListView).last,
+      const Offset(0, -200),
+    );
+    await tester.pump();
+    expect(
+      find.textContaining('This will move as your weight does'),
+      findsOneWidget,
+    );
     await tester.tap(find.text('Start'));
     await settle(tester);
 
@@ -111,6 +153,17 @@ void main() {
     final profile = await services.profiles.currentProfile();
     expect(profile, isNotNull);
     expect(profile!.sex, Sex.male);
+    expect(profile.goal, GoalKind.lose);
+    expect(profile.targetWeightKg, 70);
+    expect(profile.paceKgPerWeek, 0.5);
+    expect(profile.macroSplit, MacroSplit.balanced);
+    // The typed-in weight went in as an observation, labelled as such.
+    final weights = await services.db.select(services.db.observations).get();
+    expect(weights.single.kind, 'weight_kg');
+    expect(weights.single.value, 75);
+    expect(weights.single.source, selfReportedSource);
+    // And Today's target is the one the summary showed.
+    expect(find.text('left of 2,215'), findsOneWidget);
     final consent = await tester.runAsync(
       () => services.profiles
           .watchLatestConsent(ConsentRecord.bodyComposition)

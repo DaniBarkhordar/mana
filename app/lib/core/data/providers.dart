@@ -26,6 +26,7 @@ import '../food/food_identifier.dart';
 import '../food/food_search.dart';
 import '../food/open_food_facts.dart';
 import '../food/starter_foods.dart';
+import '../nutrition/energy_target.dart';
 import '../nutrition/models.dart';
 import '../nutrition/portion.dart';
 import '../scale/lefu_driver.dart';
@@ -60,6 +61,7 @@ export '../billing/entitlements.dart'
         PlusStatus,
         PurchaseCancelled;
 export '../health/health_importer.dart' show HealthImporter, HealthKind;
+export '../nutrition/energy_target.dart';
 export '../nutrition/portion.dart' show Recipe;
 export 'account_actions.dart' show AccountActions, DataExporter;
 export 'repositories/recipe_repository.dart'
@@ -783,57 +785,69 @@ final weightSeriesProvider = Provider<List<({DateTime at, double value})>>(
 // Energy target
 // ---------------------------------------------------------------------------
 
+/// The source label for a weight the user typed in rather than stood on a
+/// scale for. Stored as an observation like any other reading, so its
+/// provenance travels with it, and superseded by the first real one.
+const selfReportedSource = 'self_reported';
+
+/// The most recent weight from any source, oldest-first series so the last
+/// is the latest. Used only when there is no body reading yet: onboarding
+/// asks for a rough weight so the first target has something to stand on.
+final latestWeightObservationProvider = StreamProvider<double?>((ref) async* {
+  final s = await ref.watch(appServicesProvider.future);
+  yield* s.observations
+      .watchSeries('weight_kg', limit: 1)
+      .map((points) => points.isEmpty ? null : points.last.value);
+});
+
+/// The weight the target is sized from: the latest reading, else the
+/// self-reported figure from onboarding, else a placeholder so the screen
+/// is never empty.
+final targetWeightBasisProvider = Provider<double>((ref) {
+  final latest = ref.watch(latestBodyMeasurementProvider);
+  if (latest != null) return latest.weightKg;
+  return ref.watch(latestWeightObservationProvider).valueOrNull ?? 75;
+});
+
 /// Today's target. Derived from the most recent body measurement when there is
 /// one — a fat-free-mass-based resting rate beats an anthropometric one — and
-/// from Mifflin-St Jeor otherwise.
+/// from Mifflin-St Jeor otherwise, then shaped by the profile's goal (see
+/// `nutrition/energy_target.dart`). Recomputed whenever a reading lands, so
+/// the target follows the weight rather than the number typed at sign-up.
 final dailyTargetProvider = Provider<EnergyTarget?>((ref) {
   final profile = ref.watch(userProfileProvider).valueOrNull;
   if (profile == null) return null;
-  final latest = ref.watch(latestBodyMeasurementProvider);
-
-  final input = BiaInput(
-    heightCm: profile.heightCm,
-    weightKg: latest?.weightKg ?? 75,
-    ageYears: profile.ageYears,
-    sex: profile.sex,
-  );
-
-  final ffm = latest?.metric('fatFreeMass')?.value;
-  final resting =
-      ffm != null ? rmrCunningham1980(ffm) : bmrMifflinStJeor(input);
-
-  final maintenance = tdee(
-    restingKcal: resting.value,
-    activity: profile.activity,
-  );
-
-  return EnergyTarget(
-    kcal: maintenance.round(),
-    basis: ffm != null
-        ? 'From your fat-free mass (${resting.equation.citation})'
-        : 'From height, weight and age (${resting.equation.citation})',
-    proteinG: (input.weightKg * 1.6).round(),
-    fatG: (maintenance * 0.28 / 9).round(),
+  return energyTargetFor(
+    profile: profile,
+    latest: ref.watch(latestBodyMeasurementProvider),
+    weightKg: ref.watch(targetWeightBasisProvider),
   );
 });
 
-class EnergyTarget {
-  const EnergyTarget({
-    required this.kcal,
-    required this.basis,
-    this.proteinG,
-    this.fatG,
-  });
-
-  final int kcal;
-  final String basis;
-  final int? proteinG;
-  final int? fatG;
-
-  int get carbG {
-    final remaining = kcal - ((proteinG ?? 0) * 4) - ((fatG ?? 0) * 9);
-    return (remaining / 4).round().clamp(0, 1000);
-  }
+/// The one place the target is built from a profile, so the onboarding
+/// summary and the Goals screen show exactly the number Today will.
+EnergyTarget energyTargetFor({
+  required UserProfile profile,
+  required BodyCompositionResult? latest,
+  required double weightKg,
+}) {
+  final input = BiaInput(
+    heightCm: profile.heightCm,
+    weightKg: weightKg,
+    ageYears: profile.ageYears,
+    sex: profile.sex,
+  );
+  final ffm = latest?.metric('fatFreeMass')?.value;
+  final resting =
+      ffm != null ? rmrCunningham1980(ffm) : bmrMifflinStJeor(input);
+  return computeEnergyTarget(
+    resting: resting,
+    activity: profile.activity,
+    weightKg: weightKg,
+    goal: profile.goal,
+    paceKgPerWeek: profile.paceKgPerWeek,
+    split: profile.macroSplit,
+  );
 }
 
 // ---------------------------------------------------------------------------

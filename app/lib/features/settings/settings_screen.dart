@@ -7,6 +7,7 @@ import '../../theme/instruments.dart';
 import '../../theme/tokens.dart';
 import '../food/recipes_screen.dart';
 import 'account_screen.dart';
+import 'goals_screen.dart';
 import 'paywall_screen.dart';
 import 'scale_pairing_sheet.dart';
 import 'sources_screen.dart';
@@ -42,6 +43,11 @@ class SettingsScreen extends ConsumerWidget {
               child: MananuHeader(title: 'Settings', label: 'mananu'),
             ),
             const SizedBox(height: MananuSpacing.sm),
+            const MananuSection(
+              title: 'Your plan',
+              child: Card(child: _GoalsTile()),
+            ),
+            const SizedBox(height: MananuSpacing.xl),
             MananuSection(
               title: 'Your scales',
               child: Card(
@@ -244,6 +250,38 @@ class SettingsScreen extends ConsumerWidget {
         ),
       );
     }
+  }
+}
+
+/// The goal in one line — what, how fast, and today's number — and the way
+/// to the Goals screen to change it.
+class _GoalsTile extends ConsumerWidget {
+  const _GoalsTile();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final profile = ref.watch(userProfileProvider).valueOrNull;
+    final target = ref.watch(dailyTargetProvider);
+    final String subtitle;
+    if (profile == null || target == null) {
+      subtitle = 'Set what you are here for and the pace you want.';
+    } else {
+      final pace = profile.paceKgPerWeek ?? 0.5;
+      final what = switch (profile.goal) {
+        GoalKind.lose => 'Lose ${formatPace(pace)} kg a week',
+        GoalKind.maintain => 'Stay where you are',
+        GoalKind.gain => 'Gain ${formatPace(pace)} kg a week',
+      };
+      subtitle = '$what · ${thousands(target.kcal)} kcal a day';
+    }
+    return _NavTile(
+      icon: Icons.flag_outlined,
+      title: 'Goals',
+      subtitle: subtitle,
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute<void>(builder: (_) => const GoalsScreen()),
+      ),
+    );
   }
 }
 
