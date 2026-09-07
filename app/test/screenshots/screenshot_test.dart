@@ -43,13 +43,17 @@ void main() {
   late FoodCatalog catalog;
 
   setUpAll(() async {
-    final files = (fontPath ?? '')
+    // flutter_test does not load pubspec fonts, so the bundled face is loaded
+    // here under its real family name and every MananuType style picks it up.
+    final files = (fontPath ??
+            'assets/fonts/InstrumentSans-Regular.ttf:'
+                'assets/fonts/InstrumentSans-Bold.ttf')
         .split(':')
         .map(File.new)
         .where((f) => f.path.isNotEmpty && f.existsSync())
         .toList();
     if (files.isEmpty) return;
-    final loader = FontLoader('Shot');
+    final loader = FontLoader(MananuType.family);
     for (final f in files) {
       final bytes = f.readAsBytesSync();
       loader.addFont(Future.value(ByteData.view(bytes.buffer)));
@@ -68,9 +72,7 @@ void main() {
     await services.db.close();
   });
 
-  ThemeData themed(ThemeData base) => fontPath == null
-      ? base
-      : base.copyWith(textTheme: base.textTheme.apply(fontFamily: 'Shot'));
+  ThemeData themed(ThemeData base) => base;
 
   Widget app({
     required Widget home,
