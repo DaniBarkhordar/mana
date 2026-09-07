@@ -170,7 +170,8 @@ void main() {
     final history =
         (await tester.runAsync(() => services.body.watchHistory().first))!;
     expect(history, hasLength(1));
-    expect(history.single.weightKg, closeTo(78.4, 1e-9));
+    // The demo reading wanders a few hundred grams around the base weight.
+    expect(history.single.weightKg, closeTo(78.4, 0.31));
     expect(history.single.metric('bodyFatPercent'), isNotNull);
     final kinds = (await services.db.select(services.db.observations).get())
         .map((o) => o.kind)

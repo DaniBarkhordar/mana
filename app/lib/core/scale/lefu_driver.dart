@@ -57,6 +57,7 @@ import 'package:pp_bluetooth_kit_flutter/enums/pp_scale_enums.dart';
 import 'package:pp_bluetooth_kit_flutter/model/pp_body_base_model.dart';
 import 'package:pp_bluetooth_kit_flutter/model/pp_device_model.dart';
 
+import 'frames.dart';
 import 'scale_driver.dart';
 
 /// Credentials issued by the vendor's open platform.
@@ -368,27 +369,48 @@ class LefuScaleDriver implements ScaleDriver {
     if (m == null) return;
     if (m.isOverload) return;
 
+    final sample = kind == ScaleKind.body
+        ? _aggregator.accept(_frameFor(m), now: m.measuredAt)
+        : WeightSample(
+            kg: m.weightKg,
+            // A kitchen scale streams continuously and reports no settled
+            // state through this SDK; the weigh flow's own tare logic decides
+            // when the value has stopped moving.
+            isStable: true,
+            at: m.measuredAt,
+          );
+    if (sample == null) return;
+
     _samples.add(
       WeightSample(
-        kg: m.weightKg,
-        isStable: _looksStable(m),
-        at: m.measuredAt,
-        impedanceOhm: m.impedance,
+        kg: sample.kg,
+        isStable: sample.isStable,
+        at: sample.at,
+        impedanceOhm: sample.impedanceOhm,
         segmental: m.z100Khz,
       ),
     );
   }
 
-  bool _looksStable(LefuMeasurement m) {
-    // The SDK reports PPMeasurementDataState.completed when a reading is final
-    // (vendor source: "in this state, read the impedance and calculate body
-    // data"). PpBluetoothKitChannel maps that onto `isCompleted`. The
-    // impedance check remains as a fallback for families that never send it.
-    if (m.isCompleted) return true;
-    if (kind == ScaleKind.body && m.impedance != null && m.impedance! > 0) {
-      return true;
-    }
-    return false;
+  /// A body-scale measurement as the shared aggregator sees it.
+  ///
+  /// The SDK reports `PPMeasurementDataState.completed` when a reading is
+  /// final (vendor source: "in this state, read the impedance and calculate
+  /// body data"); [PpBluetoothKitChannel] maps that onto `isCompleted`. A
+  /// frame carrying an impedance is treated as settled too, for families that
+  /// never send `completed`. Either way the aggregator publishes one stable
+  /// sample per time someone stands on the scale and resets when they step
+  /// off, so a reading is never recorded three times because three frames
+  /// each carried the same impedance.
+  ScaleFrame _frameFor(LefuMeasurement m) {
+    final settled =
+        m.isCompleted || (m.impedance != null && m.impedance! > 0);
+    return ScaleFrame(
+      weightKg: m.weightKg,
+      stability: settled ? WeightStability.stable : WeightStability.live,
+      impedanceOhm: m.impedance,
+      protocol: driverName,
+    );
   }
 
   /// Maps the vendor's measurement dictionary onto [LefuMeasurement].

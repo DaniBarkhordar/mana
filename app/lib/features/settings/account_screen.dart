@@ -50,17 +50,39 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
     }
   }
 
+  /// Turns whatever the sign-in stack threw into one sentence a person can
+  /// act on. The gotrue and platform errors carry distinct wording, so the
+  /// specific cases are checked before the loose ones: a rate-limit message
+  /// mentions "email" and would otherwise read as a bad code.
   static String _friendly(Object e) {
     final text = e.toString().toLowerCase();
-    if (text.contains('network') || text.contains('socket')) {
+    if (text.contains('rate limit') || text.contains('too many')) {
+      return 'Too many codes requested. Wait a minute or two, then ask '
+          'for another.';
+    }
+    if (text.contains('network') ||
+        text.contains('socket') ||
+        text.contains('failed host lookup') ||
+        text.contains('connection')) {
       return 'No connection. Your diary is safe on this phone; try again '
           'when you are online.';
     }
-    if (text.contains('otp') ||
+    if (text.contains('expired')) {
+      return 'That code has expired. Request a new one.';
+    }
+    if (text.contains('invalid') ||
+        text.contains('otp') ||
         text.contains('token') ||
         text.contains('code')) {
-      return 'That code did not match. Codes expire after a few minutes; '
-          'request a new one if it has been a while.';
+      return 'That code did not match. Check the six digits and try again, '
+          'or request a new one.';
+    }
+    if (text.contains('already') && text.contains('link')) {
+      return 'That account is already used by another Mananu profile. Sign '
+          'out here and sign in with it instead.';
+    }
+    if (text.contains('not available') || text.contains('unsupported')) {
+      return 'That sign-in is not available on this device.';
     }
     return 'That did not work. Try again in a moment.';
   }

@@ -22,7 +22,8 @@ class MananuColors {
   // Neutrals — light
   static const ink = Color(0xFF0D1012);
   static const slate = Color(0xFF3B4247);
-  static const mist = Color(0xFF858D93);
+  /// 4.6:1 on [paper], so captions pass WCAG AA; the old 0xFF858D93 was 3.2:1.
+  static const mist = Color(0xFF6B7378);
   static const line = Color(0xFFE4E2DC);
   static const surface = Color(0xFFFFFFFF);
   static const paper = Color(0xFFFAF9F5);

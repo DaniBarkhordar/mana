@@ -367,10 +367,18 @@ class SimulatedScaleDriver implements ScaleDriver {
 
   /// Demo: step on the body scale. Emits a settling sequence and then exactly
   /// one stable sample carrying an impedance, as the real hardware does.
-  Future<void> simulateReading({double? kg, double impedanceOhm = 512}) async {
+  ///
+  /// Without an explicit [kg] the reading wanders a few hundred grams either
+  /// side of [bodyWeightKg], and the impedance a few ohms, the way a real
+  /// morning weigh-in does. Identical readings made the demo's trend chart a
+  /// flat line, which hid the whole point of showing a trend.
+  Future<void> simulateReading({double? kg, double? impedanceOhm}) async {
     if (kind != ScaleKind.body) return;
-    final target = kg ?? bodyWeightKg;
-    bodyWeightKg = target;
+    final jitter = kg == null ? (_random.nextDouble() - 0.5) * 0.6 : 0.0;
+    final target = (((kg ?? bodyWeightKg) + jitter) * 10).round() / 10;
+    if (kg != null) bodyWeightKg = kg;
+    final impedance = impedanceOhm ??
+        512 + (_random.nextDouble() - 0.5) * 24;
     for (var t = 1; t < 8; t++) {
       _emit(
         WeightSample(
@@ -386,10 +394,12 @@ class SimulatedScaleDriver implements ScaleDriver {
         kg: target,
         isStable: true,
         at: DateTime.now(),
-        impedanceOhm: impedanceOhm,
+        impedanceOhm: impedance,
       ),
     );
   }
+
+  final _random = math.Random();
 
   /// Test and demo hook: push an arbitrary reading.
   void emit(double kg, {bool stable = true, double? impedanceOhm}) {
