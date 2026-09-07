@@ -15,17 +15,25 @@ Mananu fixes both. The scale supplies exact grams. The camera is used only for w
 ```
 app/                      Flutter app
   lib/core/bia/           Published BIA equations + the honesty layer
-  lib/core/nutrition/     Per-100g model, running-tare weighing, yield factors
-  lib/core/scale/         Driver abstraction, byte parsers, vendor adapter
+  lib/core/nutrition/     Per-100g model, running-tare weighing, yield factors, recipes
+  lib/core/scale/         Driver abstraction, byte parsers, the vendor driver, pairing
+  lib/core/data/          Drift schema, repositories, sync, Riverpod wiring
+  lib/core/auth/          Sign-in that links the anonymous user
+  lib/core/billing/       Plus, through RevenueCat
+  lib/core/health/        Apple Health / Health Connect into observations
   lib/features/           Screens
-  test/                   Unit tests for everything numeric
+  lib/theme/              Tokens and instruments — every colour, type size and drawn piece
+  test/                   Unit, repository and widget tests; a screenshot harness
 supabase/
   migrations/             Schema with RLS, consent records, real deletion
-  functions/identify-food Vision endpoint, cached and metered
+  functions/identify-food AI identification, cached and metered by tier
+  functions/revenuecat-webhook  Store entitlements into public.entitlements
+vendor/                   The scale vendor's SDKs and demos, as shipped
+design/                   The screens on a Claude Design canvas, generated from the tokens
 scripts/
   verify_core.py          Independent check of the maths and the byte parsing
   build_food_db.py        CoFID + USDA -> offline SQLite
-docs/                     Factory, name, claims, compliance, runbook
+docs/                     Factory, name, claims, compliance, runbook, review notes, privacy policy
 ```
 
 ## Three design decisions worth knowing about
