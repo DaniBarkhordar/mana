@@ -60,11 +60,11 @@ DANGER = "#B03A2E"
 PROTEIN, CARBS, FAT = "#2F6F8F", "#C8912F", "#8A5A9B"
 INK = "#0D1012"
 
-FONT = "Inter, system-ui, -apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif"
+FONT = "'Instrument Sans', Inter, system-ui, -apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif"
 TNUM = "font-variant-numeric:tabular-nums;font-feature-settings:'tnum';"
 
 # Type ramp — MananuType, verbatim.
-T_READOUT = f"font-size:76px;font-weight:300;letter-spacing:-2.5px;line-height:1;{TNUM}"
+T_READOUT = f"font-size:76px;font-weight:400;letter-spacing:-2.5px;line-height:1;{TNUM}"
 T_DISPLAY = f"font-size:40px;font-weight:600;letter-spacing:-1px;line-height:1.05;{TNUM}"
 T_TITLE = "font-size:22px;font-weight:600;letter-spacing:-0.3px;line-height:1.2;"
 T_HEADING = "font-size:17px;font-weight:600;letter-spacing:-0.1px;line-height:1.3;"
@@ -137,7 +137,7 @@ def doc(inner, p, width=390, height=None):
 <body>
 <x-dc>
 <helmet>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&amp;display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:ital,wght@0,400..700;1,400..700&amp;display=swap">
   <style>
     body {{ margin: 0; background: {p['scaffold']}; color: {p['on']}; font-family: {FONT}; -webkit-font-smoothing: antialiased; }}
     a {{ color: {BRASS}; }} a:hover {{ color: {WARNING}; }}

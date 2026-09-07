@@ -28,10 +28,10 @@ import 'package:mananu/theme/tokens.dart';
 /// Renders the real screens at phone size and writes PNGs, so the design can
 /// be looked at without a device. Runs as an ordinary test everywhere (it
 /// exercises every screen with data); it only writes files when
-/// MANANU_SHOTS_DIR is set, and only uses a real typeface when
-/// MANANU_FONT_PATH points at one or more TTFs (colon-separated; give the
-/// regular and bold cuts so weights render) — flutter_tester otherwise draws
-/// text as boxes.
+/// MANANU_SHOTS_DIR is set. The app's bundled typeface (Instrument Sans,
+/// declared in pubspec.yaml) is loaded by flutter_test on its own; icons are
+/// not, so they render as boxes. MANANU_FONT_PATH (colon-separated TTFs)
+/// remains as an override to preview another face.
 ///
 ///   MANANU_SHOTS_DIR=/tmp/shots \
 ///   MANANU_FONT_PATH=/fonts/Sans-Regular.ttf:/fonts/Sans-Bold.ttf \

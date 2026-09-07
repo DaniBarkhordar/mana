@@ -80,6 +80,20 @@ flutter:
     - assets/
     - assets/food/
     - assets/brand/
+    - assets/fonts/
+
+  # Instrument Sans, SIL Open Font License 1.1 (assets/fonts/InstrumentSans-OFL.txt).
+  fonts:
+    - family: Instrument Sans
+      fonts:
+        - asset: assets/fonts/InstrumentSans-Regular.ttf
+        - asset: assets/fonts/InstrumentSans-Italic.ttf
+          style: italic
+        - asset: assets/fonts/InstrumentSans-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/InstrumentSans-BoldItalic.ttf
+          weight: 700
+          style: italic
 
 # Launcher icons from the brand monogram (brand/mananu-monogram.svg rendered
 # to PNG). Run after changing them: dart run flutter_launcher_icons

@@ -83,16 +83,26 @@ const _tabular = <FontFeature>[FontFeature.tabularFigures()];
 class MananuType {
   const MananuType._();
 
-  /// The live weight readout. Large, light, tabular.
+  /// Instrument Sans (SIL Open Font License; the licence ships in
+  /// assets/fonts). Bundled so the type is the same on iOS and Android and
+  /// matches the design canvas. Named on every style, not just the theme, so
+  /// an app bar title or a button label set from these constants renders in
+  /// it too.
+  static const family = 'Instrument Sans';
+
+  /// The live weight readout. Large, tabular. Instrument Sans has no light
+  /// cut; the regular weight at this size reads as the design intends.
   static const readout = TextStyle(
+    fontFamily: family,
     fontSize: 76,
-    fontWeight: FontWeight.w300,
+    fontWeight: FontWeight.w400,
     letterSpacing: -2.5,
     height: 1.0,
     fontFeatures: _tabular,
   );
 
   static const display = TextStyle(
+    fontFamily: family,
     fontSize: 40,
     fontWeight: FontWeight.w600,
     letterSpacing: -1.0,
@@ -101,32 +111,41 @@ class MananuType {
   );
 
   static const title = TextStyle(
+    fontFamily: family,
     fontSize: 22,
     fontWeight: FontWeight.w600,
     letterSpacing: -0.3,
   );
 
   static const heading = TextStyle(
+    fontFamily: family,
     fontSize: 17,
     fontWeight: FontWeight.w600,
     letterSpacing: -0.1,
   );
 
-  static const body = TextStyle(fontSize: 15, height: 1.45);
+  static const body = TextStyle(fontFamily: family, fontSize: 15, height: 1.45);
 
-  static const bodyStrong =
-      TextStyle(fontSize: 15, height: 1.45, fontWeight: FontWeight.w600);
+  static const bodyStrong = TextStyle(
+    fontFamily: family,
+    fontSize: 15,
+    height: 1.45,
+    fontWeight: FontWeight.w600,
+  );
 
-  static const caption = TextStyle(fontSize: 13, height: 1.35);
+  static const caption =
+      TextStyle(fontFamily: family, fontSize: 13, height: 1.35);
 
   /// Small all-caps label used for section headers and state badges.
   static const label = TextStyle(
+    fontFamily: family,
     fontSize: 11,
     fontWeight: FontWeight.w700,
     letterSpacing: 0.9,
   );
 
   static const number = TextStyle(
+    fontFamily: family,
     fontSize: 15,
     fontWeight: FontWeight.w600,
     fontFeatures: _tabular,
@@ -162,6 +181,7 @@ class MananuTheme {
 
     return ThemeData(
       useMaterial3: true,
+      fontFamily: MananuType.family,
       colorScheme: scheme,
       scaffoldBackgroundColor:
           isDark ? MananuColors.inkDark : MananuColors.paper,
