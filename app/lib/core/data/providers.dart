@@ -34,6 +34,7 @@ import '../scale/lefu_driver.dart';
 import '../scale/pairing.dart';
 import '../scale/scale_driver.dart';
 import 'account_actions.dart';
+import 'body_reading_recorder.dart';
 import 'db/database.dart' hide Recipe;
 import 'models.dart';
 import 'repositories/body_repository.dart';
@@ -603,45 +604,26 @@ String observationSourceFor(ScaleDriver driver, ScaleKind kind) {
 /// Turns each settled body-scale sample into a stored reading. Kept alive by
 /// the shell for the app's lifetime.
 ///
-/// Composition is only computed with consent: without it the impedance is
-/// dropped before the engine sees it, and the reading is stored weight-only.
+/// The consent rule — composition only with consent, weight-only without —
+/// lives in [recordBodyReading] so the stored-readings catch-up
+/// (scale/stored_readings_sync.dart) applies exactly the same one.
 final bodyReadingRecorderProvider = Provider<void>((ref) {
   final driver = ref.watch(bodyScaleDriverProvider);
   final sub = driver.samples.listen((sample) async {
     if (!sample.isStable) return;
     final services = ref.read(appServicesProvider).valueOrNull;
     if (services == null) return;
-    final profile = await services.profiles.currentProfile();
-    if (profile == null) return;
-    // Read from the database, not from a provider nobody may be watching:
-    // the answer has to be the standing decision at this instant.
-    final consent =
-        await services.profiles.latestConsent(ConsentRecord.bodyComposition);
-    final consented = consent?.granted ?? false;
-
-    final input = BiaInput(
-      heightCm: profile.heightCm,
-      weightKg: sample.kg,
-      ageYears: profile.ageOn(sample.at),
-      sex: profile.sex,
-      resistanceOhm: consented ? sample.impedanceOhm : null,
-      reactanceOhm: consented ? sample.reactanceOhm : null,
-    );
-    final result = const BodyCompositionEngine().evaluate(
-      input: input,
-      takenAt: sample.at,
-    );
-    await services.body.record(
-      result: result,
-      input: input,
+    final id = await recordBodyReading(
+      profiles: services.profiles,
+      body: services.body,
+      kg: sample.kg,
+      at: sample.at,
+      impedanceOhm: sample.impedanceOhm,
+      reactanceOhm: sample.reactanceOhm,
       source: observationSourceFor(driver, ScaleKind.body),
-      raw: {
-        'kg': sample.kg,
-        'impedance_ohm': sample.impedanceOhm,
-        'reactance_ohm': sample.reactanceOhm,
-        'driver': driver.driverName,
-      },
+      driverName: driver.driverName,
     );
+    if (id == null) return;
     // Measured weight to Health, when asked. Never the demo scale's, never
     // the composition.
     if (driver is! SimulatedScaleDriver) {

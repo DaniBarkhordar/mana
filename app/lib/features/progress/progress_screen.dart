@@ -1060,10 +1060,9 @@ class _WearableRow extends StatelessWidget {
             ],
           ),
         ),
-        // Bounded so a long caption ("down 1,234 on 9,876") wraps rather
-        // than pushing the row past the card; the left column takes the rest.
-        ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 168),
+        // Flexible so the longest wording ("level with 0 min on 7h 20")
+        // wraps under the figure rather than pushing past the card edge.
+        Flexible(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [

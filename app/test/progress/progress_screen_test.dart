@@ -7,6 +7,7 @@ import 'package:mananu/core/bia/equations.dart';
 import 'package:mananu/core/data/providers.dart';
 import 'package:mananu/core/nutrition/models.dart';
 import 'package:mananu/core/nutrition/portion.dart';
+import 'package:mananu/core/scale/stored_readings_sync.dart';
 import 'package:mananu/features/progress/progress_screen.dart';
 
 /// Boots the whole app on an in-memory database with the design persona —
@@ -226,7 +227,21 @@ void main() {
   testWidgets('with nothing logged the tab shows one friendly card',
       (tester) async {
     await seedProfile();
-    await pumpApp(tester);
+    // The demo scale hands over three remembered mornings on connect, which
+    // would fill the page; "nothing logged" means that catch-up did not run.
+    tester.view.physicalSize = const Size(1170, 2532);
+    tester.view.devicePixelRatio = 3.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          appServicesProvider.overrideWith((ref) async => services),
+          storedReadingsSyncProvider.overrideWith((ref) {}),
+        ],
+        child: const MananuApp(),
+      ),
+    );
     await settle(tester);
     await tester.tap(_tab('Progress'));
     await settle(tester);

@@ -205,14 +205,22 @@ void main() {
       (tester) async {
     await pumpApp(tester);
     await completeOnboarding(tester);
-    // Let the simulated scales connect.
+    // Let the simulated scales connect. On connect the demo scale hands over
+    // the three mornings it "remembered", and the shell says so.
     await tester.pump(const Duration(seconds: 1));
+    await settle(tester);
+    expect(find.text('Caught up: 3 readings from your scale'), findsOneWidget);
 
     await tester.tap(_tab('Body'));
     await tester.pump(const Duration(milliseconds: 300));
-    expect(find.text('No readings yet'), findsOneWidget);
+    expect(find.text('No readings yet'), findsNothing);
+    final caughtUp =
+        (await tester.runAsync(() => services.body.watchHistory().first))!;
+    expect(caughtUp, hasLength(3));
+    expect(caughtUp.last.takenAt.isBefore(DateTime.now()), isTrue);
 
-    await tester.tap(find.text('Simulate stepping on'));
+    // With readings on the page the demo control moves to the header.
+    await tester.tap(find.byTooltip('Simulate stepping on (demo)'));
     // Seven settling samples at 200 ms, then the stable one.
     await tester.pump(const Duration(seconds: 2));
     await settle(tester);
@@ -222,10 +230,10 @@ void main() {
 
     final history =
         (await tester.runAsync(() => services.body.watchHistory().first))!;
-    expect(history, hasLength(1));
+    expect(history, hasLength(4));
     // The demo reading wanders a few hundred grams around the base weight.
-    expect(history.single.weightKg, closeTo(78.4, 0.31));
-    expect(history.single.metric('bodyFatPercent'), isNotNull);
+    expect(history.last.weightKg, closeTo(78.4, 0.31));
+    expect(history.last.metric('bodyFatPercent'), isNotNull);
     final kinds = (await services.db.select(services.db.observations).get())
         .map((o) => o.kind)
         .toSet();
@@ -256,16 +264,22 @@ void main() {
     );
     await settle(tester);
     await tester.pump(const Duration(seconds: 1));
+    await settle(tester);
     await tester.tap(_tab('Body'));
     await tester.pump(const Duration(milliseconds: 300));
-    await tester.tap(find.text('Simulate stepping on'));
+    // The demo scale's remembered mornings are already on the page, stored
+    // under the same rule; the live reading joins them.
+    await tester.tap(find.byTooltip('Simulate stepping on (demo)'));
     await tester.pump(const Duration(seconds: 2));
     await settle(tester);
 
     final history =
         (await tester.runAsync(() => services.body.watchHistory().first))!;
-    expect(history.single.impedanceOhm, isNull);
-    expect(history.single.metric('fatFreeMass'), isNull);
+    expect(history, hasLength(4));
+    for (final reading in history) {
+      expect(reading.impedanceOhm, isNull);
+      expect(reading.metric('fatFreeMass'), isNull);
+    }
     expect(find.text('Weight only for this reading'), findsOneWidget);
     await shutDown(tester);
   });

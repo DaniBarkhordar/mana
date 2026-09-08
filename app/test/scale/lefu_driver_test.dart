@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mananu/core/data/db/database.dart';
 import 'package:mananu/core/scale/lefu_driver.dart';
@@ -9,57 +7,7 @@ import 'package:pp_bluetooth_kit_flutter/enums/pp_scale_enums.dart';
 import 'package:pp_bluetooth_kit_flutter/model/pp_body_base_model.dart';
 import 'package:pp_bluetooth_kit_flutter/model/pp_device_model.dart';
 
-/// Stands in for the vendor plugin: scripted devices, scripted frames, and a
-/// record of every call, so the driver can be exercised without a licence.
-class FakeChannel implements LefuSdkChannel {
-  FakeChannel({this.initOk = true, this.devices = const []});
-
-  final bool initOk;
-  final List<Map<String, dynamic>> devices;
-  final calls = <String>[];
-  final frames = StreamController<Map<String, dynamic>>.broadcast();
-  final link = StreamController<String>.broadcast();
-
-  @override
-  Future<bool> initSdk(LefuCredentials credentials) async {
-    calls.add('init ${credentials.redacted}');
-    return initOk;
-  }
-
-  @override
-  Stream<Map<String, dynamic>> startScan() async* {
-    calls.add('scan');
-    for (final d in devices) {
-      yield d;
-    }
-  }
-
-  @override
-  Future<void> stopScan() async => calls.add('stopScan');
-
-  @override
-  Future<void> connectDevice(String deviceId) async =>
-      calls.add('connect $deviceId');
-
-  @override
-  Future<void> disconnect() async => calls.add('disconnect');
-
-  @override
-  Stream<String> connectionStates() => link.stream;
-
-  @override
-  Stream<Map<String, dynamic>> measurements() => frames.stream;
-
-  @override
-  Future<void> toZero() async => calls.add('toZero');
-
-  @override
-  Future<void> impedanceSwitchControl({required bool on}) async =>
-      calls.add('impedance $on');
-
-  @override
-  Future<Map<String, dynamic>> fetchDeviceInfo() async => const {};
-}
+import 'fake_channel.dart';
 
 const _creds = LefuCredentials(
   appKey: 'lefu-test-key',
@@ -137,6 +85,29 @@ void main() {
         ScaleKind.body,
       );
       expect(LefuScaleDriver.parseMeasurement(map)!.impedance, isNull);
+    });
+
+    test('a stored reading is complete and keeps the scale\'s own stamp', () {
+      final m = PPBodyBaseModel()
+        ..weight = 7910
+        ..impedance = 520
+        ..measureTime = 1757056320000;
+      final map = LefuSdkGateway.historyToMap(m, _device(), ScaleKind.body);
+      expect(map['isCompleted'], isTrue);
+      expect(map['measuredAt'], 1757056320000);
+      expect(map['weight'], closeTo(79.1, 1e-9));
+      final parsed = LefuScaleDriver.parseMeasurement(map)!;
+      expect(parsed.measuredAt.millisecondsSinceEpoch, 1757056320000);
+      expect(LefuScaleDriver.hasTimestamp(map), isTrue);
+
+      // A scale that never had its clock set stamps zero: no date, not now.
+      final undated = LefuSdkGateway.historyToMap(
+        PPBodyBaseModel()..weight = 7910,
+        _device(),
+        ScaleKind.body,
+      );
+      expect(undated['measuredAt'], isNull);
+      expect(LefuScaleDriver.hasTimestamp(undated), isFalse);
     });
   });
 
@@ -252,6 +223,64 @@ void main() {
       await Future<void>.delayed(Duration.zero);
       expect(states, [ScaleConnectionState.unauthorised]);
       expect(channel.calls, isNot(contains('scan')));
+      await driver.dispose();
+    });
+
+    test('stored readings honour their timestamps and clear waits for us',
+        () async {
+      final channel = FakeChannel(
+        storedReadings: [
+          // Out of order on purpose: the driver sorts oldest first.
+          {'weight': 78.9, 'impedance': 510, 'measuredAt': 1757056320000},
+          {'weight': 79.3, 'impedance': 518, 'measuredAt': 1756883520000},
+          // Seconds rather than milliseconds, as Android can send.
+          {'weight': 79.1, 'impedance': 0, 'measureTime': 1756969920},
+          // Undated: dropped, never stamped with now.
+          {'weight': 80.0, 'impedance': 512, 'measureTime': 0},
+          // Overloaded: not a reading.
+          {'weight': 79.0, 'isOverload': true, 'measuredAt': 1757000000000},
+        ],
+      );
+      final driver = LefuScaleDriver(channel: channel, credentials: _creds);
+      await driver.connect(
+        const DiscoveredScale(id: 'AA', name: 'Body', kind: ScaleKind.body),
+      );
+
+      final stored = await driver.fetchStoredReadings();
+      expect(stored, hasLength(3));
+      expect(
+        stored.map((r) => r.at.millisecondsSinceEpoch),
+        [1756883520000, 1756969920000, 1757056320000],
+      );
+      expect(stored.map((r) => r.kg), [79.3, 79.1, 78.9]);
+      // Zero impedance is "not measured" for a stored reading too.
+      expect(stored.map((r) => r.impedanceOhm), [518, null, 510]);
+
+      // Fetching never clears: that is the sync's decision, after storing.
+      expect(channel.calls, contains('fetchHistory body'));
+      expect(channel.calls, isNot(contains('clearHistory body')));
+      await driver.clearStoredReadings();
+      expect(
+        channel.calls.indexOf('clearHistory body'),
+        greaterThan(channel.calls.indexOf('fetchHistory body')),
+      );
+      expect(await driver.fetchStoredReadings(), isEmpty);
+      await driver.dispose();
+    });
+
+    test('a kitchen scale has no memory to fetch', () async {
+      final channel = FakeChannel(
+        storedReadings: [
+          {'weight': 0.235, 'measuredAt': 1757056320000},
+        ],
+      );
+      final driver = LefuScaleDriver(
+        channel: channel,
+        credentials: _creds,
+        kind: ScaleKind.kitchen,
+      );
+      expect(await driver.fetchStoredReadings(), isEmpty);
+      expect(channel.calls, isNot(contains('fetchHistory kitchen')));
       await driver.dispose();
     });
 

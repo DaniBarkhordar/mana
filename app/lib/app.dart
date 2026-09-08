@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/data/providers.dart';
+import 'core/scale/stored_readings_sync.dart';
 import 'features/body/body_screen.dart';
 import 'features/food/weigh_food_screen.dart';
 import 'features/home/today_screen.dart';
@@ -71,7 +72,15 @@ class _MananuShellState extends ConsumerState<MananuShell> {
     // listener that stores each settled body reading.
     ref.watch(scaleSessionProvider);
     ref.watch(bodyReadingRecorderProvider);
+    ref.watch(storedReadingsSyncProvider);
     ref.watch(healthRefreshProvider);
+    // The scale's memory has been caught up on: say so, once, and move on.
+    ref.listen<StoredReadingsCatchUp?>(storedReadingsCaughtUpProvider,
+        (_, catchUp) {
+      if (catchUp == null) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(catchUp.message)));
+    });
     final index = ref.watch(shellIndexProvider);
 
     return Scaffold(
