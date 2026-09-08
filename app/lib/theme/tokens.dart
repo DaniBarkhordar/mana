@@ -22,6 +22,7 @@ class MananuColors {
   // Neutrals — light
   static const ink = Color(0xFF0D1012);
   static const slate = Color(0xFF3B4247);
+
   /// 4.6:1 on [paper], so captions pass WCAG AA; the old 0xFF858D93 was 3.2:1.
   static const mist = Color(0xFF6B7378);
   static const line = Color(0xFFE4E2DC);
@@ -57,6 +58,25 @@ class MananuColors {
   static const protein = Color(0xFF2F6F8F);
   static const carbs = Color(0xFFC8912F);
   static const fat = Color(0xFF8A5A9B);
+
+  /// The quiet tint that sits behind [base]: a chip background, a gauge
+  /// track, the wash under a badge.
+  ///
+  /// In light mode the hand-picked `*Soft` constants are used, because a
+  /// flat alpha over white reads muddy for brass and grey for green. In dark
+  /// mode the same alpha trick the [ProvenanceBadge] already uses is applied,
+  /// so the tint follows whatever surface it sits on. Feature code should
+  /// call this rather than reach for `brassSoft` / `measuredSoft` /
+  /// `estimatedSoft` directly, so a dark-mode tint is never forgotten.
+  static Color soft(BuildContext context, Color base) {
+    if (Theme.of(context).brightness == Brightness.dark) {
+      return base.withValues(alpha: 0.18);
+    }
+    if (base == brass) return brassSoft;
+    if (base == measured) return measuredSoft;
+    if (base == estimated) return estimatedSoft;
+    return base.withValues(alpha: 0.12);
+  }
 }
 
 class MananuSpacing {
