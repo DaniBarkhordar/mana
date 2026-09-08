@@ -17,6 +17,7 @@ import 'package:mananu/core/food/food_catalog.dart';
 import 'package:mananu/core/nutrition/models.dart';
 import 'package:mananu/core/nutrition/portion.dart';
 import 'package:mananu/core/scale/scale_driver.dart';
+import 'package:mananu/features/body/observation_detail_screen.dart';
 import 'package:mananu/features/food/recipes_screen.dart';
 import 'package:mananu/features/food/weigh_food_screen.dart';
 import 'package:mananu/features/progress/progress_screen.dart';
@@ -482,6 +483,31 @@ void main() {
     await shoot(tester, 'pairing-dark');
     await shutDown(tester);
   });
+
+  // The observation drill-down on the month of weight the persona carries:
+  // the 7-day median, the usual-range band, every reading as a dot and a
+  // row. One screen for every kind, so one capture per theme stands for
+  // them all.
+  for (final brightness in Brightness.values) {
+    testWidgets('observation weight ${brightness.name}', (tester) async {
+      await phone(tester);
+      await tester.pumpWidget(
+        app(
+          home: const RepaintBoundary(
+            child: ObservationDetailScreen(kind: 'weight_kg'),
+          ),
+          brightness: brightness,
+        ),
+      );
+      await shoot(
+        tester,
+        brightness == Brightness.dark
+            ? 'observation-weight-dark'
+            : 'observation-weight',
+      );
+      await shutDown(tester);
+    });
+  }
 
   testWidgets('onboarding', (tester) async {
     await phone(tester);

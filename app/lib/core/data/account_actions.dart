@@ -58,6 +58,30 @@ class DataExporter {
     );
   }
 
+  /// Every live observation of one [kind], oldest first, as one RFC 4180 CSV
+  /// — the same columns as the observations file in [writeAll], so a
+  /// spreadsheet built for one opens the other. CRLF line ends, as the RFC
+  /// specifies. The reference range travels with each row: a lab result
+  /// leaves the app with the range it arrived with.
+  Future<String> exportKind(String kind) async {
+    final spec = _tables.singleWhere((t) => t.name == 'observations');
+    final rows = await _db.customSelect(
+      'select taken_at, kind, value, unit, source, method, confidence, '
+      'reference_low, reference_high, reference_source, id '
+      'from observations where deleted_at is null and kind = ? '
+      'order by taken_at',
+      variables: [Variable.withString(kind)],
+    ).get();
+    final buf = StringBuffer()..write(csvLine(spec.columns));
+    for (final row in rows) {
+      buf
+        ..write('\r\n')
+        ..write(csvLine([for (final c in spec.columns) row.data[c]]));
+    }
+    buf.write('\r\n');
+    return buf.toString();
+  }
+
   /// RFC 4180: quote when needed, double the quotes inside, ISO dates as
   /// stored, empty for null.
   static String csvLine(List<Object?> values) => values.map((v) {
