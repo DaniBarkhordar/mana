@@ -47,7 +47,7 @@ python3 scripts/verify_core.py
 ```bash
 supabase init
 supabase link --project-ref <ref>          # create the project in London (eu-west-2)
-supabase db push                            # applies migrations/0001, 0002, 0003
+supabase db push                            # applies migrations/0001 … 0004 in order
 
 supabase secrets set ANTHROPIC_API_KEY=...  # the default provider
 supabase functions deploy identify-food
@@ -133,6 +133,18 @@ Bundled Plus with the hardware: grant it in RevenueCat as a promotional entitlem
 - **Android:** Health Connect needs a published privacy policy URL that explains health-data use, linked from the Play listing *and* reachable from the permissions rationale intent the manifest declares. Google reviews Health Connect access as a separate form in the Play Console ("Health apps" declaration): list the seven permissions the manifest requests and the reason for each (runbook §9 has the wording).
 - Body fat is never written to either store. Do not add it back: it is a modelled estimate, and both platforms treat what is written as measured.
 
+## 3d. Reminders
+
+Local notifications only (`flutter_local_notifications`); nothing leaves the phone and no push service is involved. Everything is off until the person switches it on in Settings → Reminders, which is the only place the OS permission is requested.
+
+- **Android:** the manifest declares `POST_NOTIFICATIONS`, `RECEIVE_BOOT_COMPLETED` and the plugin's two receivers; scheduling is inexact, so no exact-alarm permission and no Play Console justification for one. `build.gradle.kts` enables core-library desugaring because the plugin requires it.
+- **iOS:** `AppDelegate.swift` sets the notification-centre delegate; the Darwin initialisation requests nothing at launch.
+- A reminder is planned as one-shot per day for the next seven days and re-planned on every launch, so today's meal reminder is skipped when that slot is already logged and an app nobody opens goes quiet on its own. The bodies never contain a weight, a kcal figure or a percentage.
+
+## 3e. Links out
+
+`url_launcher` opens the terms and privacy policy from the paywall and from About in an external browser (so the address bar shows the domain). The URLs live in one place, `app/lib/core/legal.dart`; serve them at `getmananu.com/terms` and `/privacy` before submission (App Review reads the paywall for both; Health Connect requires the privacy policy to be reachable from the app).
+
 ## 4. Wiring the real scale
 
 The vendor driver is written against the vendored plugin (`vendor/pp_bluetooth_kit_flutter`, a path dependency) and tested against a fake channel. What it needs from you is the licence:
@@ -185,7 +197,6 @@ CoFID is the right spine for a UK product: "chips", "baked beans", "roast chicke
 ## 6. Builds
 
 ```bash
-npm i -g eas-cli    # or use flutter build directly
 flutter build ipa --release
 flutter build appbundle --release
 ```
