@@ -172,6 +172,7 @@ class CookingFatCapture {
     required this.gramsAdded,
     required this.gramsRemaining,
     required this.portions,
+    this.method = PortionMethod.weighed,
   }) : assert(portions > 0, 'a pan must serve at least one portion');
 
   /// The oil or butter itself, so its own nutrition is used rather than a
@@ -186,6 +187,13 @@ class CookingFatCapture {
   /// How many portions the pan produced.
   final int portions;
 
+  /// How the two pan readings were obtained: [PortionMethod.weighed] when
+  /// the scale read them, [PortionMethod.manualGrams] when the person typed
+  /// them because no scale was connected. It travels into the logged
+  /// component so a typed figure can never count towards the meal's weighed
+  /// share — that share is the number the product's honesty rests on.
+  final PortionMethod method;
+
   double get gramsAbsorbed => math.max(0, gramsAdded - gramsRemaining);
 
   double get gramsPerPortion => gramsAbsorbed / portions;
@@ -193,11 +201,46 @@ class CookingFatCapture {
   LoggedComponent componentForOnePortion() => LoggedComponent(
         food: fat,
         grams: gramsPerPortion,
-        method: PortionMethod.weighed,
+        method: method,
         isCookingFat: true,
         note: 'Cooking fat absorbed — '
             '${gramsAbsorbed.toStringAsFixed(0)} g across $portions '
             '${portions == 1 ? 'portion' : 'portions'}',
+      );
+}
+
+/// The first half of a [CookingFatCapture]: the oil has been weighed into
+/// the pan and the food is cooking.
+///
+/// Held by the weigh session rather than by the sheet, because the sheet is
+/// dismissed while the pan is on the hob and the capture must still be there
+/// when the pan comes back. Cooking takes longer than a bottom sheet lives.
+class PendingCookingFat {
+  const PendingCookingFat({
+    required this.fat,
+    required this.gramsAdded,
+    this.portions = 1,
+  }) : assert(portions > 0, 'a pan must serve at least one portion');
+
+  final FoodItem fat;
+
+  /// What the scale read after the oil went in, with the pan tared out.
+  final double gramsAdded;
+
+  final int portions;
+
+  /// The pan is back: finish the capture with what is left in it.
+  CookingFatCapture complete({
+    required double gramsRemaining,
+    int? portions,
+    PortionMethod method = PortionMethod.weighed,
+  }) =>
+      CookingFatCapture(
+        fat: fat,
+        gramsAdded: gramsAdded,
+        gramsRemaining: gramsRemaining,
+        portions: portions ?? this.portions,
+        method: method,
       );
 }
 

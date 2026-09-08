@@ -1,6 +1,7 @@
 @Tags(['screenshots'])
 library;
 
+import 'dart:async';
 import 'dart:io';
 import 'dart:ui' as ui;
 
@@ -17,6 +18,7 @@ import 'package:mananu/core/food/food_catalog.dart';
 import 'package:mananu/core/nutrition/models.dart';
 import 'package:mananu/core/nutrition/portion.dart';
 import 'package:mananu/core/scale/scale_driver.dart';
+import 'package:mananu/features/food/cooking_fat_sheet.dart';
 import 'package:mananu/features/food/recipes_screen.dart';
 import 'package:mananu/features/food/weigh_food_screen.dart';
 import 'package:mananu/features/settings/account_screen.dart';
@@ -223,6 +225,57 @@ void main() {
     await shoot(tester, 'weigh-food');
     await shutDown(tester);
   });
+
+  for (final brightness in Brightness.values) {
+    final dark = brightness == Brightness.dark;
+    testWidgets('cooking fat${dark ? ' dark' : ''}', (tester) async {
+      await phone(tester);
+      await tester.pumpWidget(
+        app(
+          home: const RepaintBoundary(child: WeighFoodScreen()),
+          brightness: brightness,
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 300));
+      // Connect the demo kitchen scale, open the sheet, tare the pan and
+      // pour 15 g of oil: step 2 with the capture button live.
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(WeighFoodScreen)),
+      );
+      final driver =
+          container.read(kitchenScaleDriverProvider) as SimulatedScaleDriver;
+      unawaited(
+        driver.connect(
+          const DiscoveredScale(
+            id: 'sim-0001',
+            name: 'Kitchen scale (demo)',
+            kind: ScaleKind.kitchen,
+          ),
+        ),
+      );
+      for (var i = 0; i < 6; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      await tester.tap(find.text('Cooking oil'));
+      for (var i = 0; i < 6; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      await tester.tap(
+        find.descendant(
+          of: find.byType(CookingFatSheet),
+          matching: find.text('Tare'),
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 300));
+      unawaited(driver.setLoadGrams(15));
+      for (var i = 0; i < 8; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      expect(find.text('Capture 15.0 g'), findsOneWidget);
+      await shoot(tester, dark ? 'cooking-fat-dark' : 'cooking-fat');
+      await shutDown(tester);
+    });
+  }
 
   testWidgets('account', (tester) async {
     await phone(tester);

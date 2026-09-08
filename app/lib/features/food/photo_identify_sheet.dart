@@ -25,12 +25,17 @@ class PhotoOutcome {
     required this.matched,
     this.picked,
     this.wantsCookingFat = false,
+    this.fatHint,
   });
 
   final IdentifyResult result;
   final List<MatchedCandidate> matched;
   final FoodItem? picked;
   final bool wantsCookingFat;
+
+  /// What the model thought the food was cooked in ("ghee"), so the
+  /// cooking-fat sheet can offer that fat first. A name, never an amount.
+  final String? fatHint;
 }
 
 class PhotoIdentifySheet extends ConsumerStatefulWidget {
@@ -184,9 +189,14 @@ class _PhotoIdentifySheetState extends ConsumerState<PhotoIdentifySheet> {
     );
   }
 
-  void _cookingFat() {
+  void _cookingFat(String hint) {
     Navigator.of(context).pop(
-      PhotoOutcome(result: _result!, matched: _matched, wantsCookingFat: true),
+      PhotoOutcome(
+        result: _result!,
+        matched: _matched,
+        wantsCookingFat: true,
+        fatHint: hint,
+      ),
     );
   }
 
@@ -340,7 +350,7 @@ class _Results extends StatelessWidget {
   final Uint8List? photo;
   final String? description;
   final void Function(MatchedCandidate, FoodItem) onPick;
-  final VoidCallback onCookingFat;
+  final ValueChanged<String> onCookingFat;
   final VoidCallback? onRetake;
 
   @override
@@ -447,7 +457,7 @@ class _Results extends StatelessWidget {
                     color: scheme.onSurface.withValues(alpha: 0.6),
                   ),
                 ),
-                onTap: onCookingFat,
+                onTap: () => onCookingFat(fatHints.first),
               ),
             ),
           ],
