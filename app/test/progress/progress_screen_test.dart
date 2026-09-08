@@ -8,6 +8,7 @@ import 'package:mananu/core/data/providers.dart';
 import 'package:mananu/core/nutrition/models.dart';
 import 'package:mananu/core/nutrition/portion.dart';
 import 'package:mananu/core/scale/stored_readings_sync.dart';
+import 'package:mananu/features/body/observation_detail_screen.dart';
 import 'package:mananu/features/progress/progress_screen.dart';
 
 /// Boots the whole app on an in-memory database with the design persona —
@@ -224,6 +225,29 @@ void main() {
     expect(find.text('From Apple Health'), findsOneWidget);
     expect(find.text('Sleep'), findsOneWidget);
     expect(find.text('7-DAY AVERAGE · 30-DAY BASELINE'), findsOneWidget);
+
+    // Every value is one tap from its readings.
+    await tester.tap(find.text('Sleep'));
+    await settle(tester);
+    expect(find.byType(ObservationDetailScreen), findsOneWidget);
+    expect(
+      tester
+          .widget<ObservationDetailScreen>(find.byType(ObservationDetailScreen))
+          .kind,
+      'sleep_minutes',
+    );
+    await tester.pageBack();
+    await settle(tester);
+    await tester.tap(find.text('WEIGHT · 30 DAYS'));
+    await settle(tester);
+    expect(
+      tester
+          .widget<ObservationDetailScreen>(find.byType(ObservationDetailScreen))
+          .kind,
+      'weight_kg',
+    );
+    await tester.pageBack();
+    await settle(tester);
     await shutDown(tester);
   });
 

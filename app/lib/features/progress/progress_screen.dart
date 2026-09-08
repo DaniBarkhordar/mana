@@ -15,6 +15,7 @@ import 'package:intl/intl.dart';
 
 import '../../core/data/providers.dart';
 import '../../theme/instruments.dart';
+import '../body/observation_detail_screen.dart';
 import '../../theme/tokens.dart';
 import 'in_your_data_card.dart';
 import 'progress_providers.dart';
@@ -162,98 +163,109 @@ class _WeightCard extends ConsumerWidget {
         window.last.at.difference(window.first.at).inHours >= 24;
 
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(
-          MananuSpacing.xl,
-          MananuSpacing.lg,
-          MananuSpacing.xl,
-          MananuSpacing.lg,
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        // Every chart is one tap from its readings; see ObservationDetailScreen.
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => const ObservationDetailScreen(kind: 'weight_kg'),
+          ),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    'WEIGHT · $days DAYS',
-                    style: MananuType.label.copyWith(color: muted),
-                  ),
-                ),
-                _RangeControl(
-                  days: days,
-                  onChanged: (d) =>
-                      ref.read(progressWeightRangeProvider.notifier).state = d,
-                ),
-              ],
-            ),
-            const SizedBox(height: MananuSpacing.md),
-            if (!enough)
-              _InlineEmpty(
-                message: series.isEmpty
-                    ? 'Step on the scale a few mornings and a trend appears '
-                        'here.'
-                    : 'A trend needs readings on three separate days. Keep '
-                        'going.',
-              )
-            else
-              _WeightChart(window: window, goalKg: goal),
-            const SizedBox(height: MananuSpacing.md),
-            if (rate != null) ...[
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(
+            MananuSpacing.xl,
+            MananuSpacing.lg,
+            MananuSpacing.xl,
+            MananuSpacing.lg,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
               Row(
                 children: [
-                  Icon(
-                    rate.abs() < 0.05
-                        ? Icons.trending_flat
-                        : rate < 0
-                            ? Icons.trending_down
-                            : Icons.trending_up,
-                    size: 18,
-                    color: MananuColors.brass,
+                  Expanded(
+                    child: Text(
+                      'WEIGHT · $days DAYS',
+                      style: MananuType.label.copyWith(color: muted),
+                    ),
+                  ),
+                  _RangeControl(
+                    days: days,
+                    onChanged: (d) => ref
+                        .read(progressWeightRangeProvider.notifier)
+                        .state = d,
+                  ),
+                ],
+              ),
+              const SizedBox(height: MananuSpacing.md),
+              if (!enough)
+                _InlineEmpty(
+                  message: series.isEmpty
+                      ? 'Step on the scale a few mornings and a trend appears '
+                          'here.'
+                      : 'A trend needs readings on three separate days. Keep '
+                          'going.',
+                )
+              else
+                _WeightChart(window: window, goalKg: goal),
+              const SizedBox(height: MananuSpacing.md),
+              if (rate != null) ...[
+                Row(
+                  children: [
+                    Icon(
+                      rate.abs() < 0.05
+                          ? Icons.trending_flat
+                          : rate < 0
+                              ? Icons.trending_down
+                              : Icons.trending_up,
+                      size: 18,
+                      color: MananuColors.brass,
+                    ),
+                    const SizedBox(width: MananuSpacing.sm),
+                    Expanded(
+                      child: Text(
+                        describeWeeklyRate(rate),
+                        style:
+                            MananuType.body.copyWith(color: scheme.onSurface),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: MananuSpacing.sm),
+              ],
+              if (goal != null && series.isNotEmpty) ...[
+                Text(
+                  '${(series.last.value - goal).abs().toStringAsFixed(1)} kg '
+                  '${series.last.value >= goal ? 'above' : 'below'} your goal of '
+                  '${goal.toStringAsFixed(1)} kg',
+                  style: MananuType.caption.copyWith(
+                    color: scheme.onSurface.withValues(alpha: 0.6),
+                  ),
+                ),
+                const SizedBox(height: MananuSpacing.xs),
+              ],
+              Row(
+                children: [
+                  const ProvenanceBadge(
+                    weighed: true,
+                    label: 'Measured',
+                    dense: true,
                   ),
                   const SizedBox(width: MananuSpacing.sm),
                   Expanded(
                     child: Text(
-                      describeWeeklyRate(rate),
-                      style: MananuType.body.copyWith(color: scheme.onSurface),
+                      'From ${sourceDisplayName(source)}. The line is the 7-day '
+                      'median; the dots are each reading.',
+                      style: MananuType.caption.copyWith(
+                        fontSize: 11,
+                        color: scheme.onSurface.withValues(alpha: 0.55),
+                      ),
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: MananuSpacing.sm),
             ],
-            if (goal != null && series.isNotEmpty) ...[
-              Text(
-                '${(series.last.value - goal).abs().toStringAsFixed(1)} kg '
-                '${series.last.value >= goal ? 'above' : 'below'} your goal of '
-                '${goal.toStringAsFixed(1)} kg',
-                style: MananuType.caption.copyWith(
-                  color: scheme.onSurface.withValues(alpha: 0.6),
-                ),
-              ),
-              const SizedBox(height: MananuSpacing.xs),
-            ],
-            Row(
-              children: [
-                const ProvenanceBadge(
-                  weighed: true,
-                  label: 'Measured',
-                  dense: true,
-                ),
-                const SizedBox(width: MananuSpacing.sm),
-                Expanded(
-                  child: Text(
-                    'From ${sourceDisplayName(source)}. The line is the 7-day '
-                    'median; the dots are each reading.',
-                    style: MananuType.caption.copyWith(
-                      fontSize: 11,
-                      color: scheme.onSurface.withValues(alpha: 0.55),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ],
+          ),
         ),
       ),
     );
@@ -1045,54 +1057,64 @@ class _WearableRow extends StatelessWidget {
         .firstWhere((k) => k.$1 == c.kind, orElse: () => (c.kind, c.kind))
         .$2;
     final delta = c.delta;
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Icon(
-          _icons[c.kind] ?? Icons.sensors,
-          size: 20,
-          color: MananuColors.brass,
+    return InkWell(
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => ObservationDetailScreen(kind: c.kind),
         ),
-        const SizedBox(width: MananuSpacing.md),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(label, style: MananuType.bodyStrong),
-              Text(
-                'From ${c.sourceName}',
-                style: MananuType.caption.copyWith(fontSize: 11, color: muted),
-              ),
-            ],
+      ),
+      borderRadius: MananuSpacing.radiusSm,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            _icons[c.kind] ?? Icons.sensors,
+            size: 20,
+            color: MananuColors.brass,
           ),
-        ),
-        // Flexible so the longest wording ("level with 0 min on 7h 20")
-        // wraps under the figure rather than pushing past the card edge.
-        Flexible(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                c.sevenDay == null ? '—' : format(c.kind, c.sevenDay!),
-                style: MananuType.display.copyWith(
-                  fontSize: 22,
-                  color: scheme.onSurface,
+          const SizedBox(width: MananuSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label, style: MananuType.bodyStrong),
+                Text(
+                  'From ${c.sourceName}',
+                  style:
+                      MananuType.caption.copyWith(fontSize: 11, color: muted),
                 ),
-              ),
-              Text(
-                c.thirtyDay == null
-                    ? 'no 30-day baseline yet'
-                    : delta == null
-                        ? 'baseline ${format(c.kind, c.thirtyDay!)}'
-                        : '${_deltaWord(delta)} ${_formatDelta(c.kind, delta.abs())} '
-                            'on ${format(c.kind, c.thirtyDay!)}',
-                textAlign: TextAlign.end,
-                style: MananuType.caption.copyWith(fontSize: 11, color: muted),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
-      ],
+          // Flexible so the longest wording ("level with 0 min on 7h 20")
+          // wraps under the figure rather than pushing past the card edge.
+          Flexible(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  c.sevenDay == null ? '—' : format(c.kind, c.sevenDay!),
+                  style: MananuType.display.copyWith(
+                    fontSize: 22,
+                    color: scheme.onSurface,
+                  ),
+                ),
+                Text(
+                  c.thirtyDay == null
+                      ? 'no 30-day baseline yet'
+                      : delta == null
+                          ? 'baseline ${format(c.kind, c.thirtyDay!)}'
+                          : '${_deltaWord(delta)} ${_formatDelta(c.kind, delta.abs())} '
+                              'on ${format(c.kind, c.thirtyDay!)}',
+                  textAlign: TextAlign.end,
+                  style:
+                      MananuType.caption.copyWith(fontSize: 11, color: muted),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 
