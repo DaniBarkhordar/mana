@@ -173,6 +173,65 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   });
 
+  testWidgets(
+      'a description skips the camera and the photo consent, and '
+      'reaches the identifier as words with no image', (tester) async {
+    PhotoOutcome? outcome;
+    await tester.pumpWidget(
+      host(
+        open: (context) => Center(
+          child: FilledButton(
+            onPressed: () async => outcome = await PhotoIdentifySheet.show(
+              context,
+              description: 'Chicken tikka with rice and a naan',
+              measuredGrams: 412,
+            ),
+            child: const Text('Describe'),
+          ),
+        ),
+      ),
+    );
+    await settle(tester);
+    await tester.tap(find.text('Describe'));
+    await tester
+        .runAsync(() => Future<void>.delayed(const Duration(milliseconds: 50)));
+    await settle(tester);
+
+    // No consent screen: text is not a photo. No camera either.
+    expect(find.text('Photos and the AI provider'), findsNothing);
+    expect(find.text('Opening the camera'), findsNothing);
+    final consent = await tester.runAsync(
+      () => services.profiles.latestConsent(ConsentRecord.photoRecognition),
+    );
+    expect(consent, isNull);
+
+    final req = identifier.lastRequest!;
+    expect(req.description, 'Chicken tikka with rice and a naan');
+    expect(req.imageBase64, isNull);
+    final json = req.toJson();
+    expect(json.keys, isNot(contains('imageBase64')));
+    expect(json['description'], 'Chicken tikka with rice and a naan');
+    expect(json['measuredGrams'], 412);
+    expect(json.keys, isNot(contains('grams')));
+
+    // The same results view: matched to the catalogue, largest share first,
+    // with the words shown and no retake button.
+    expect(find.text('Basmati rice'), findsOneWidget);
+    expect(find.textContaining('Rice, white, basmati, boiled'), findsOneWidget);
+    expect(find.text('"Chicken tikka with rice and a naan"'), findsOneWidget);
+    expect(find.byTooltip('Retake'), findsNothing);
+    expect(
+      find.textContaining('Your words only say what the food is'),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.text('Basmati rice'));
+    await settle(tester);
+    expect(outcome!.picked!.id, 'cofid:rice-boiled');
+    expect(outcome!.matched, hasLength(2));
+    await tester.pumpWidget(const SizedBox());
+  });
+
   testWidgets('a degraded reply is shown honestly and weighing goes on',
       (tester) async {
     identifier = FakeIdentifier(IdentifyResult.unavailable);

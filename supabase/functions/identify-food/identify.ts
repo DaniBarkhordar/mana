@@ -8,10 +8,14 @@
 
 import { z } from "zod";
 
-/** What the app sends. Mirrors `IdentifyRequest.toJson` in the Flutter app. */
+/** What the app sends. Mirrors `IdentifyRequest.toJson` in the Flutter app.
+ *  A photo, a description, or both; never a question about quantity. */
 export interface IdentifyRequest {
   /** base64 JPEG, already downscaled to <=512px on the longest edge. */
-  imageBase64: string;
+  imageBase64?: string;
+  /** The food in the user's own words, when there is no photo (or alongside
+   *  one). 1-300 characters. Identification only, exactly like a photo. */
+  description?: string;
   /** Device-local time, so "07:40" can bias towards breakfast foods. */
   localTime?: string;
   /** BCP-47, e.g. "en-GB". Drives cuisine priors and UK product names. */
@@ -67,11 +71,11 @@ export interface IdentifyResponse extends IdentifyResult {
  * That is the cost control and the accuracy claim at the same time
  * (CLAUDE.md hard rule 1).
  */
-export const SYSTEM_PROMPT = `You identify food in photographs for Mananu, a UK nutrition app built around a kitchen scale.
+export const SYSTEM_PROMPT = `You identify food in photographs, or in a short written description, for Mananu, a UK nutrition app built around a kitchen scale.
 
 The exact weight of the food is measured by hardware. NEVER estimate portion size, grams, calories or macros — the scale has the number and you do not.
 
-Your only job is identification. For each distinct food component in the photo give:
+Your only job is identification. For each distinct food component in the photo or description give:
 - a short specific name a UK shopper would recognise
 - 2 to 4 search queries for a food-composition database (CoFID / USDA), most specific first, plain words, no punctuation
 - whether it is cooked or raw
@@ -83,7 +87,8 @@ Rules:
 - Split composite plates into components. "Chicken curry with rice" is at least three: chicken, sauce, rice.
 - Use the context you are given (time of day, the user's recent foods, anything they typed) to resolve ambiguity, and say so in a query when it helps.
 - If the photo is unclear, say so with low confidence rather than guessing.
-- If there is no food in the image, return an empty list and a short note.
+- If there is no food in the image, or the description does not name any, return an empty list and a short note.
+- A description is a list of what was eaten, not a quantity: "two slices of toast" still means one component, toast.
 - Never diagnose, never give medical or dietary advice, never call an allergen safe or unsafe.`;
 
 export function buildUserPrompt(req: IdentifyRequest): string {
@@ -103,7 +108,13 @@ export function buildUserPrompt(req: IdentifyRequest): string {
     if (recent.length) bits.push(`This user's recent foods: ${recent.join(", ")}`);
   }
   if (req.hint?.trim()) bits.push(`User note: ${req.hint.trim().slice(0, 200)}`);
-  bits.push("Identify the food components in this photograph.");
+  const description = req.description?.trim().slice(0, MAX_DESCRIPTION_LENGTH);
+  if (description) bits.push(`The user describes the food as: ${description}`);
+  bits.push(
+    req.imageBase64
+      ? "Identify the food components in this photograph."
+      : "Identify the food components in this description.",
+  );
   return bits.join("\n");
 }
 
@@ -272,9 +283,13 @@ export function modelFor(env: VisionEnv, provider: Provider, tier: Tier): string
   return paid;
 }
 
-/** Cache key: the same bytes, the same hint, the same model — the same answer. */
+/** Cache key: the same bytes, the same words, the same hint, the same model —
+ *  the same answer. The description is part of it so "chicken tikka" and
+ *  "lamb tikka" can never share a cached plate. */
 export async function cacheKey(req: IdentifyRequest, model: string): Promise<string> {
-  return await sha256(`${model}|${req.hint ?? ""}|${req.imageBase64}`);
+  return await sha256(
+    `${model}|${req.hint ?? ""}|${req.description ?? ""}|${req.imageBase64 ?? ""}`,
+  );
 }
 
 export async function sha256(input: string): Promise<string> {
@@ -290,14 +305,31 @@ export async function sha256(input: string): Promise<string> {
 /** A 512 px JPEG is well under 200 KB; anything much bigger is not from our app. */
 export const MAX_IMAGE_BASE64 = 900_000;
 
+/** A sentence or two names a plate; a paragraph is not a description of one. */
+export const MAX_DESCRIPTION_LENGTH = 300;
+
+/**
+ * A request must carry a photo or a description (or both). The image checks
+ * are unchanged; a description is trimmed and must fit the length limit the
+ * app also enforces.
+ */
 export function validateRequest(body: unknown): IdentifyRequest | string {
   if (!body || typeof body !== "object") return "bad request";
   const b = body as Record<string, unknown>;
-  if (typeof b.imageBase64 !== "string" || b.imageBase64.length === 0) return "no image";
-  if (b.imageBase64.length > MAX_IMAGE_BASE64) return "image too large";
-  if (!/^[A-Za-z0-9+/=\s]+$/.test(b.imageBase64.slice(0, 4096))) return "image is not base64";
+  const hasImage = typeof b.imageBase64 === "string" && b.imageBase64.length > 0;
+  const description = typeof b.description === "string" ? b.description.trim() : "";
+  if (!hasImage && !description) return "no image or description";
+  if (description.length > MAX_DESCRIPTION_LENGTH) return "description too long";
+  let imageBase64: string | undefined;
+  if (hasImage) {
+    const image = b.imageBase64 as string;
+    if (image.length > MAX_IMAGE_BASE64) return "image too large";
+    if (!/^[A-Za-z0-9+/=\s]+$/.test(image.slice(0, 4096))) return "image is not base64";
+    imageBase64 = image.replace(/\s+/g, "");
+  }
   return {
-    imageBase64: b.imageBase64.replace(/\s+/g, ""),
+    imageBase64,
+    description: description || undefined,
     localTime: typeof b.localTime === "string" ? b.localTime.slice(0, 8) : undefined,
     locale: typeof b.locale === "string" ? b.locale.slice(0, 16) : undefined,
     recentFoods: Array.isArray(b.recentFoods)

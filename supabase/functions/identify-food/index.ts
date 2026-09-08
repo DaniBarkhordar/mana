@@ -7,7 +7,8 @@
 //     spends most of its accuracy budget guessing grams from pixels, and gets it
 //     wrong by a documented ±22%. We have a scale. The model's only job is "what
 //     is this", which is the part it is actually good at, and asking for less
-//     means fewer output tokens and a short, schema-bound answer.
+//     means fewer output tokens and a short, schema-bound answer. A typed
+//     description goes through the same call with no image block at all.
 //
 //  2. The image is downscaled to 512px on the device before upload. At that
 //     size a photo is a few hundred image tokens on Claude, so a scan is a
@@ -88,11 +89,14 @@ async function callAnthropic(req: IdentifyRequest, model: string): Promise<Ident
     },
     messages: [{
       role: "user",
+      // A described plate has no image block: the text alone carries it.
       content: [
-        {
-          type: "image",
-          source: { type: "base64", media_type: "image/jpeg", data: req.imageBase64 },
-        },
+        ...(req.imageBase64
+          ? [{
+            type: "image",
+            source: { type: "base64", media_type: "image/jpeg", data: req.imageBase64 },
+          }]
+          : []),
         { type: "text", text: buildUserPrompt(req) },
       ],
     }],
@@ -133,7 +137,9 @@ async function callGemini(req: IdentifyRequest, model: string): Promise<Identify
       contents: [{
         role: "user",
         parts: [
-          { inline_data: { mime_type: "image/jpeg", data: req.imageBase64 } },
+          ...(req.imageBase64
+            ? [{ inline_data: { mime_type: "image/jpeg", data: req.imageBase64 } }]
+            : []),
           { text: buildUserPrompt(req) },
         ],
       }],
@@ -195,8 +201,9 @@ Deno.serve(async (request) => {
   const model = modelFor(env, provider, tier);
 
   // ---- cache --------------------------------------------------------------
-  // Same photo, same answer, no spend. Keyed on the image, the hint and the
-  // model only: time of day and recent foods shift wording, not identity.
+  // Same photo (or the same words), same answer, no spend. Keyed on the
+  // image, the description, the hint and the model only: time of day and
+  // recent foods shift wording, not identity.
   const key = await cacheKey(body, model);
   const { data: cached } = await supabase
     .from("vision_cache")

@@ -15,6 +15,7 @@ import {
   buildUserPrompt,
   cacheKey,
   FREE_MONTHLY_LIMIT,
+  MAX_DESCRIPTION_LENGTH,
   PLUS_DAILY_CEILING,
   quotaFor,
   modelFor,
@@ -108,19 +109,69 @@ Deno.test("metering: tiers, limits and model choice", () => {
 
 Deno.test("request validation", () => {
   assertEquals(validateRequest(null), "bad request");
-  assertEquals(validateRequest({}), "no image");
+  assertEquals(validateRequest({}), "no image or description");
   assertEquals(validateRequest({ imageBase64: "%%%" }), "image is not base64");
   assertEquals(validateRequest({ imageBase64: "a".repeat(1_000_000) }), "image too large");
   const ok = validateRequest({ imageBase64: "/9j/4AAQ\n", localTime: "07:40", recentFoods: ["a", 1] });
   assert(typeof ok !== "string");
   assertEquals(ok.imageBase64, "/9j/4AAQ");
+  assertEquals(ok.description, undefined);
   assertEquals(ok.recentFoods, ["a"]);
 });
 
-Deno.test("the cache key changes with the model and the hint, not the time", async () => {
+Deno.test("a description alone is a valid request; length is bounded", () => {
+  const ok = validateRequest({ description: "  Chicken tikka with rice and a naan  " });
+  assert(typeof ok !== "string");
+  assertEquals(ok.imageBase64, undefined);
+  assertEquals(ok.description, "Chicken tikka with rice and a naan");
+  // Whitespace is not a description.
+  assertEquals(validateRequest({ description: "   " }), "no image or description");
+  assertEquals(validateRequest({ description: 42 }), "no image or description");
+  // 300 is the limit the app enforces too.
+  assert(typeof validateRequest({ description: "x".repeat(MAX_DESCRIPTION_LENGTH) }) !== "string");
+  assertEquals(
+    validateRequest({ description: "x".repeat(MAX_DESCRIPTION_LENGTH + 1) }),
+    "description too long",
+  );
+  // An image that fails its own checks still fails when a description is present.
+  assertEquals(validateRequest({ imageBase64: "%%%", description: "toast" }), "image is not base64");
+  // Both together is allowed.
+  const both = validateRequest({ imageBase64: "/9j/", description: "leftovers" });
+  assert(typeof both !== "string");
+  assertEquals(both.imageBase64, "/9j/");
+  assertEquals(both.description, "leftovers");
+});
+
+Deno.test("a described plate gets a text-only prompt that never asks for grams", () => {
+  const user = buildUserPrompt({
+    description: "Chicken tikka with rice and a naan",
+    localTime: "19:10",
+    locale: "en-GB",
+  });
+  assertStringIncludes(user, "The user describes the food as: Chicken tikka with rice and a naan");
+  assertStringIncludes(user, "Identify the food components in this description.");
+  assert(!user.includes("photograph"));
+  assert(!/gram|calorie|portion size/i.test(user));
+  // With a photo as well, the photo wording stands and the words go with it.
+  const withPhoto = buildUserPrompt({ imageBase64: "x", description: "leftover curry" });
+  assertStringIncludes(withPhoto, "The user describes the food as: leftover curry");
+  assertStringIncludes(withPhoto, "Identify the food components in this photograph.");
+  // The system prompt covers both routes and treats a count as identity, not quantity.
+  assertStringIncludes(SYSTEM_PROMPT, "short written description");
+  assertStringIncludes(SYSTEM_PROMPT, "not a quantity");
+});
+
+Deno.test("the cache key changes with the model, the hint and the description, not the time", async () => {
   const req = { imageBase64: "abc", hint: "h", localTime: "07:40" };
   const a = await cacheKey(req, "m1");
   assertEquals(a, await cacheKey({ ...req, localTime: "19:00" }, "m1"));
   assert(a !== await cacheKey(req, "m2"));
   assert(a !== await cacheKey({ ...req, hint: "other" }, "m1"));
+  // Words are identity too: two descriptions never share a plate.
+  const chicken = await cacheKey({ description: "chicken tikka" }, "m1");
+  const lamb = await cacheKey({ description: "lamb tikka" }, "m1");
+  assert(chicken !== lamb);
+  assertEquals(chicken, await cacheKey({ description: "chicken tikka", localTime: "12:00" }, "m1"));
+  // A description on top of the same photo is a different answer.
+  assert(a !== await cacheKey({ ...req, description: "leftovers" }, "m1"));
 });

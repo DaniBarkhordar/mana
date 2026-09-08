@@ -6,11 +6,15 @@
 ///   2. Add an ingredient. The live number climbs; tap once and that
 ///      ingredient's own mass is captured from the delta.
 ///   3. Repeat. The running tare means the bowl is never emptied.
-///   4. Optionally photograph the plate — the model names the components, and
-///      the scale supplies the grams. Identity from the camera, quantity from
-///      the hardware.
+///   4. Optionally photograph the plate, or describe it in words — the model
+///      names the components, and the scale supplies the grams. Identity from
+///      the camera or the keyboard, quantity from the hardware.
 ///   5. Log the oil that actually went into the food, by weighing the pan before
 ///      and after.
+///
+/// Without a scale connected — the box has not arrived, or it is a restaurant
+/// — the amount can be entered instead, and the tile says "Estimated". An
+/// estimate is allowed; an estimate dressed up as a measurement is not.
 ///
 /// Step 5 is the one worth defending. A controlled-feeding study presented at
 /// NUTRITION 2026 found the leading photo apps underestimated meals by roughly
@@ -36,6 +40,8 @@ import '../settings/paywall_screen.dart';
 import '../settings/scale_pairing_sheet.dart';
 import 'add_food_sheet.dart';
 import 'barcode_scan_screen.dart';
+import 'describe_food_sheet.dart';
+import 'enter_grams_sheet.dart';
 import 'photo_identify_sheet.dart';
 
 class WeighFoodScreen extends ConsumerStatefulWidget {
@@ -85,6 +91,7 @@ class _WeighFoodScreenState extends ConsumerState<WeighFoodScreen> {
     final captured = ref.read(weighSessionProvider.notifier).platformGrams;
     final delta = grams - captured;
     final driver = ref.watch(kitchenScaleDriverProvider);
+    final scaleConnected = connection == ScaleConnectionState.connected;
 
     return Scaffold(
       appBar: AppBar(
@@ -128,15 +135,20 @@ class _WeighFoodScreenState extends ConsumerState<WeighFoodScreen> {
                     components: components,
                     onRemove: (i) =>
                         ref.read(weighSessionProvider.notifier).removeAt(i),
+                    onEditGrams: _editGrams,
                   ),
           ),
           _ActionBar(
             pending: _pending,
-            canCapture: isStable && delta > 0.5,
+            scaleConnected: scaleConnected,
+            canCapture: scaleConnected && isStable && delta > 0.5,
             deltaGrams: delta,
             onPickFood: _pickFood,
             onPhoto: _identifyFromPhoto,
+            onDescribe: _describe,
             onCapture: () => _capture(grams),
+            onEnterGrams: _enterGrams,
+            onClearPending: () => setState(() => _pending = null),
             onCookingFat: _addCookingFat,
           ),
           if (components.isNotEmpty)
@@ -171,15 +183,85 @@ class _WeighFoodScreenState extends ConsumerState<WeighFoodScreen> {
     setState(() => _pending = null);
   }
 
+  /// No scale connected: the amount is typed or picked from a household
+  /// measure, and logged as the estimate it is. Never offered while the scale
+  /// is there to be used — an estimate of something that could have been
+  /// measured is the wrong number.
+  Future<void> _enterGrams() async {
+    final food = _pending;
+    if (food == null) return;
+    final portion = await EnterGramsSheet.show(context, food: food);
+    if (portion == null || !mounted) return;
+    ref.read(weighSessionProvider.notifier).addUnweighed(
+          food: food,
+          grams: portion.grams,
+          method: portion.method,
+          note: portion.note,
+        );
+    unawaited(HapticFeedback.lightImpact());
+    setState(() => _pending = null);
+  }
+
+  /// Correct a component after capture. The replacement keeps its place in
+  /// the list and its cooking-fat flag, but its provenance — method and note
+  /// both — becomes the entered figure's: a corrected weighing is no longer
+  /// a weighing, and a stale "One tablespoon" next to a typed 22 g would be
+  /// a lie.
+  Future<void> _editGrams(int index) async {
+    final components = ref.read(weighSessionProvider);
+    if (index < 0 || index >= components.length) return;
+    final current = components[index];
+    final portion = await EnterGramsSheet.show(
+      context,
+      food: current.food,
+      initialGrams: current.grams,
+    );
+    if (portion == null || !mounted) return;
+    ref.read(weighSessionProvider.notifier).replaceAt(
+          index,
+          LoggedComponent(
+            food: current.food,
+            grams: portion.grams,
+            method: portion.method,
+            note: portion.note,
+            isCookingFat: current.isCookingFat,
+          ),
+        );
+  }
+
   Future<void> _identifyFromPhoto() async {
     // The camera names the food. The scale weighs it. Nothing here asks a model
     // how many grams are on the plate, which is where the rest of the category
     // spends its error budget.
-    final live = ref.read(liveGramsProvider).valueOrNull?.grams;
     final outcome = await PhotoIdentifySheet.show(
       context,
-      measuredGrams: live != null && live > 1 ? live : null,
+      measuredGrams: _liveGramsForContext(),
     );
+    await _applyOutcome(outcome);
+  }
+
+  /// The same identification, from words instead of pixels. The description
+  /// sheet collects the text; the results are matched and picked exactly as
+  /// a photo's are.
+  Future<void> _describe() async {
+    final description = await DescribeFoodSheet.show(context);
+    if (description == null || !mounted) return;
+    final outcome = await PhotoIdentifySheet.show(
+      context,
+      description: description,
+      measuredGrams: _liveGramsForContext(),
+    );
+    await _applyOutcome(outcome);
+  }
+
+  /// Sent as context only, so the model knows how many components are
+  /// plausible. Never a question about quantity.
+  double? _liveGramsForContext() {
+    final live = ref.read(liveGramsProvider).valueOrNull?.grams;
+    return live != null && live > 1 ? live : null;
+  }
+
+  Future<void> _applyOutcome(PhotoOutcome? outcome) async {
     if (outcome == null || !mounted) return;
     setState(() {
       _fromPhoto = outcome.matched.where((m) => m.best != null).toList();
@@ -445,8 +527,11 @@ class _EmptyState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    // Scrolls rather than overflows: with a food pending the bar below is
+    // taller, and on a small phone with the demo controls showing the space
+    // left here can be less than the text needs.
     return Center(
-      child: Padding(
+      child: SingleChildScrollView(
         padding: const EdgeInsets.all(MananuSpacing.xxl),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -474,10 +559,70 @@ class _EmptyState extends StatelessWidget {
 }
 
 class _ComponentList extends StatelessWidget {
-  const _ComponentList({required this.components, required this.onRemove});
+  const _ComponentList({
+    required this.components,
+    required this.onRemove,
+    required this.onEditGrams,
+  });
 
   final List<LoggedComponent> components;
   final ValueChanged<int> onRemove;
+  final ValueChanged<int> onEditGrams;
+
+  /// Long press: correct the grams, or take the row out. Swipe still removes;
+  /// this is the discoverable route to both.
+  Future<void> _menu(BuildContext context, int index) async {
+    final c = components[index];
+    final action = await showModalBottomSheet<_RowAction>(
+      context: context,
+      showDragHandle: true,
+      builder: (_) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                MananuSpacing.xl,
+                0,
+                MananuSpacing.xl,
+                MananuSpacing.sm,
+              ),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  '${c.food.displayName} · ${c.grams.toStringAsFixed(0)} g',
+                  style: MananuType.bodyStrong,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.edit_outlined),
+              title: const Text('Edit grams'),
+              subtitle: const Text('Marked as an estimate once changed'),
+              onTap: () => Navigator.of(context).pop(_RowAction.edit),
+            ),
+            ListTile(
+              leading:
+                  const Icon(Icons.delete_outline, color: MananuColors.danger),
+              title: const Text('Remove'),
+              onTap: () => Navigator.of(context).pop(_RowAction.remove),
+            ),
+            const SizedBox(height: MananuSpacing.sm),
+          ],
+        ),
+      ),
+    );
+    switch (action) {
+      case _RowAction.edit:
+        onEditGrams(index);
+      case _RowAction.remove:
+        onRemove(index);
+      case null:
+        break;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -504,6 +649,7 @@ class _ComponentList extends StatelessWidget {
               horizontal: MananuSpacing.lg,
               vertical: MananuSpacing.xs,
             ),
+            onLongPress: () => _menu(context, i),
             title: Text(c.food.displayName, style: MananuType.bodyStrong),
             subtitle: Padding(
               padding: const EdgeInsets.only(top: 4),
@@ -543,23 +689,36 @@ class _ComponentList extends StatelessWidget {
   }
 }
 
+enum _RowAction { edit, remove }
+
 class _ActionBar extends StatelessWidget {
   const _ActionBar({
     required this.pending,
+    required this.scaleConnected,
     required this.canCapture,
     required this.deltaGrams,
     required this.onPickFood,
     required this.onPhoto,
+    required this.onDescribe,
     required this.onCapture,
+    required this.onEnterGrams,
+    required this.onClearPending,
     required this.onCookingFat,
   });
 
   final FoodItem? pending;
+
+  /// With the scale there, the only way to add the pending food is to weigh
+  /// it. Without it, the amount is entered and marked as an estimate.
+  final bool scaleConnected;
   final bool canCapture;
   final double deltaGrams;
   final VoidCallback onPickFood;
   final VoidCallback onPhoto;
+  final VoidCallback onDescribe;
   final VoidCallback onCapture;
+  final VoidCallback onEnterGrams;
+  final VoidCallback onClearPending;
   final VoidCallback onCookingFat;
 
   @override
@@ -567,6 +726,13 @@ class _ActionBar extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
 
     if (pending != null) {
+      final hint = !scaleConnected
+          ? 'No scale connected. Enter the amount instead; it is logged as '
+              'an estimate.'
+          : canCapture
+              ? 'Reading has settled. Tap to capture '
+                  '${deltaGrams.toStringAsFixed(1)} g.'
+              : 'Add it to the bowl and wait for the number to settle.';
       return Container(
         padding: const EdgeInsets.all(MananuSpacing.lg),
         decoration: BoxDecoration(
@@ -578,30 +744,54 @@ class _ActionBar extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text(
-                'Adding: ${pending!.displayName}',
-                style: MananuType.bodyStrong.copyWith(color: scheme.onSurface),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Adding: ${pending!.displayName}',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: MananuType.bodyStrong
+                          .copyWith(color: scheme.onSurface),
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Not this one',
+                    visualDensity: VisualDensity.compact,
+                    // Text height, not a 48 px hit box: the bar must stay
+                    // short so the list above keeps its room.
+                    padding: EdgeInsets.zero,
+                    constraints:
+                        const BoxConstraints(minWidth: 32, minHeight: 32),
+                    onPressed: onClearPending,
+                    icon: const Icon(Icons.close, size: 18),
+                  ),
+                ],
               ),
               const SizedBox(height: MananuSpacing.xs),
               Text(
-                canCapture
-                    ? 'Reading has settled. Tap to capture '
-                        '${deltaGrams.toStringAsFixed(1)} g.'
-                    : 'Add it to the bowl and wait for the number to settle.',
+                hint,
                 style: MananuType.caption.copyWith(
                   color: scheme.onSurface.withValues(alpha: 0.6),
                 ),
               ),
               const SizedBox(height: MananuSpacing.md),
-              FilledButton.icon(
-                onPressed: canCapture ? onCapture : null,
-                icon: const Icon(Icons.check),
-                label: Text(
-                  canCapture
-                      ? 'Capture ${deltaGrams.toStringAsFixed(1)} g'
-                      : 'Waiting for the scale',
+              if (scaleConnected)
+                FilledButton.icon(
+                  onPressed: canCapture ? onCapture : null,
+                  icon: const Icon(Icons.check),
+                  label: Text(
+                    canCapture
+                        ? 'Capture ${deltaGrams.toStringAsFixed(1)} g'
+                        : 'Waiting for the scale',
+                  ),
+                )
+              else
+                FilledButton.icon(
+                  onPressed: onEnterGrams,
+                  icon: const Icon(Icons.edit_outlined),
+                  label: const Text('Enter grams'),
                 ),
-              ),
             ],
           ),
         ),
@@ -633,6 +823,13 @@ class _ActionBar extends StatelessWidget {
                 icon: Icons.photo_camera_outlined,
                 label: 'Photo',
                 onTap: onPhoto,
+              ),
+            ),
+            Expanded(
+              child: _ActionButton(
+                icon: Icons.short_text,
+                label: 'Describe',
+                onTap: onDescribe,
               ),
             ),
             Expanded(
@@ -676,11 +873,17 @@ class _ActionButton extends StatelessWidget {
           children: [
             Icon(icon, color: colour, size: 22),
             const SizedBox(height: MananuSpacing.xs),
-            Text(
-              label,
-              style: MananuType.caption.copyWith(
-                color: colour,
-                fontWeight: FontWeight.w600,
+            // Four of these share a 390 px row; the label shrinks rather
+            // than wrapping under large text.
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                label,
+                maxLines: 1,
+                style: MananuType.caption.copyWith(
+                  color: colour,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
           ],

@@ -1,6 +1,7 @@
-/// Photograph the plate. The camera names the components; the scale weighs
-/// them. Nothing here asks a model how many grams are on the plate, which is
-/// where the rest of the category spends its error budget.
+/// Photograph the plate, or describe it in words. The camera or the
+/// description names the components; the scale weighs them. Nothing here asks
+/// a model how many grams are on the plate, which is where the rest of the
+/// category spends its error budget.
 library;
 
 import 'dart:async';
@@ -33,22 +34,37 @@ class PhotoOutcome {
 }
 
 class PhotoIdentifySheet extends ConsumerStatefulWidget {
-  const PhotoIdentifySheet({super.key, this.measuredGrams, this.hint});
+  const PhotoIdentifySheet({
+    super.key,
+    this.measuredGrams,
+    this.hint,
+    this.description,
+  });
 
   final double? measuredGrams;
   final String? hint;
+
+  /// When set, the food is identified from these words and the camera is
+  /// never opened. The results view is the same either way, so a described
+  /// plate is matched to the catalogue and picked exactly like a
+  /// photographed one.
+  final String? description;
 
   static Future<PhotoOutcome?> show(
     BuildContext context, {
     double? measuredGrams,
     String? hint,
+    String? description,
   }) =>
       showModalBottomSheet<PhotoOutcome>(
         context: context,
         isScrollControlled: true,
         showDragHandle: true,
-        builder: (_) =>
-            PhotoIdentifySheet(measuredGrams: measuredGrams, hint: hint),
+        builder: (_) => PhotoIdentifySheet(
+          measuredGrams: measuredGrams,
+          hint: hint,
+          description: description,
+        ),
       );
 
   @override
@@ -69,7 +85,18 @@ class _PhotoIdentifySheetState extends ConsumerState<PhotoIdentifySheet> {
     unawaited(_start());
   }
 
+  bool get _fromDescription => widget.description != null;
+
   Future<void> _start() async {
+    if (_fromDescription) {
+      // Text is not a photo, so the photo consent does not apply: that
+      // consent covers sending a picture of someone's plate and surroundings
+      // to the AI provider. A description is a few words the user typed for
+      // this purpose, and the sheet that collected them names where they go.
+      setState(() => _stage = _Stage.identifying);
+      await _identify(description: widget.description);
+      return;
+    }
     final services = await ref.read(appServicesProvider.future);
     final consent =
         await services.profiles.latestConsent(ConsentRecord.photoRecognition);
@@ -120,13 +147,19 @@ class _PhotoIdentifySheetState extends ConsumerState<PhotoIdentifySheet> {
       });
       return;
     }
+    await _identify(imageBase64: prepared);
+  }
 
+  /// The one call both paths make. Context goes with it; a quantity question
+  /// cannot, because the request has no field for one.
+  Future<void> _identify({String? imageBase64, String? description}) async {
     final services = await ref.read(appServicesProvider.future);
     final recent = await services.userFoods.recentlyLogged(limit: 25);
     final now = DateTime.now();
     final locale = WidgetsBinding.instance.platformDispatcher.locale;
     final request = IdentifyRequest(
-      imageBase64: prepared,
+      imageBase64: imageBase64,
+      description: description,
       localTime:
           '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}',
       locale: locale.toLanguageTag(),
@@ -177,9 +210,12 @@ class _PhotoIdentifySheetState extends ConsumerState<PhotoIdentifySheet> {
             result: _result!,
             matched: _matched,
             photo: _photo,
+            description: widget.description,
             onPick: _pick,
             onCookingFat: _cookingFat,
-            onRetake: _capture,
+            // Nothing to retake when there was no photo; the user closes the
+            // sheet and describes it again.
+            onRetake: _fromDescription ? null : _capture,
           ),
         _Stage.cancelled => const SizedBox.shrink(),
       },
@@ -293,6 +329,7 @@ class _Results extends StatelessWidget {
     required this.result,
     required this.matched,
     required this.photo,
+    required this.description,
     required this.onPick,
     required this.onCookingFat,
     required this.onRetake,
@@ -301,9 +338,10 @@ class _Results extends StatelessWidget {
   final IdentifyResult result;
   final List<MatchedCandidate> matched;
   final Uint8List? photo;
+  final String? description;
   final void Function(MatchedCandidate, FoodItem) onPick;
   final VoidCallback onCookingFat;
-  final VoidCallback onRetake;
+  final VoidCallback? onRetake;
 
   @override
   Widget build(BuildContext context) {
@@ -343,17 +381,29 @@ class _Results extends StatelessWidget {
                 child: Text(
                   matched.isEmpty
                       ? 'Nothing recognised'
-                      : 'Tap what you are weighing now',
+                      : 'Tap what you are logging now',
                   style: MananuType.title,
                 ),
               ),
-              IconButton(
-                tooltip: 'Retake',
-                onPressed: onRetake,
-                icon: const Icon(Icons.refresh),
-              ),
+              if (onRetake != null)
+                IconButton(
+                  tooltip: 'Retake',
+                  onPressed: onRetake,
+                  icon: const Icon(Icons.refresh),
+                ),
             ],
           ),
+          if (description != null) ...[
+            const SizedBox(height: MananuSpacing.xs),
+            Text(
+              '"$description"',
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: MananuType.caption.copyWith(
+                color: scheme.onSurface.withValues(alpha: 0.6),
+              ),
+            ),
+          ],
           if (result.note != null) ...[
             const SizedBox(height: MananuSpacing.sm),
             Text(
@@ -391,8 +441,8 @@ class _Results extends StatelessWidget {
                     const Text('Cooked in fat?', style: MananuType.bodyStrong),
                 subtitle: Text(
                   'Looks like ${fatHints.first}. Weigh the pan before and '
-                  'after to log what the food absorbed — the photo cannot '
-                  'see it.',
+                  'after to log what the food absorbed — '
+                  '${description != null ? 'no description includes it' : 'the photo cannot see it'}.',
                   style: MananuType.caption.copyWith(
                     color: scheme.onSurface.withValues(alpha: 0.6),
                   ),
@@ -403,8 +453,12 @@ class _Results extends StatelessWidget {
           ],
           const SizedBox(height: MananuSpacing.md),
           Text(
-            'The photo only says what the food is. The amount is whatever '
-            'the scale reads when you capture it.',
+            description != null
+                ? 'Your words only say what the food is. The amount comes '
+                    'from the scale, or from what you enter, which is marked '
+                    'as an estimate.'
+                : 'The photo only says what the food is. The amount is '
+                    'whatever the scale reads when you capture it.',
             style: MananuType.caption.copyWith(
               color: scheme.onSurface.withValues(alpha: 0.5),
             ),

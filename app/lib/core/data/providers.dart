@@ -666,8 +666,14 @@ class WeighSessionNotifier extends StateNotifier<List<LoggedComponent>> {
     required FoodItem food,
     required double grams,
     required PortionMethod method,
+    String? note,
   }) {
-    _session.addUnweighed(food: food, grams: grams, method: method);
+    _session.addUnweighed(
+      food: food,
+      grams: grams,
+      method: method,
+      note: note,
+    );
     state = _session.components;
   }
 
@@ -678,6 +684,11 @@ class WeighSessionNotifier extends StateNotifier<List<LoggedComponent>> {
 
   void removeAt(int i) {
     _session.removeAt(i);
+    state = _session.components;
+  }
+
+  void replaceAt(int i, LoggedComponent component) {
+    _session.replaceAt(i, component);
     state = _session.components;
   }
 
