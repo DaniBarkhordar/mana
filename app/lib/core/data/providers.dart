@@ -11,6 +11,7 @@ library;
 import 'dart:async';
 import 'dart:typed_data';
 
+import 'package:flutter/widgets.dart' show AppLifecycleListener;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -334,15 +335,32 @@ final latestObservationProvider =
 final healthRefreshProvider = Provider<void>((ref) {
   final connected = ref.watch(healthConnectedProvider).valueOrNull ?? false;
   if (!connected) return;
-  unawaited(() async {
+  DateTime? lastRun;
+  Future<void> run() async {
+    // A wearable syncs to Health while the phone is in a pocket, so the
+    // reading people expect to see is the one that arrived since the app
+    // was last in front of them. Refresh on every return to the foreground,
+    // throttled so flicking between apps does not hammer the Health store.
+    final now = DateTime.now();
+    if (lastRun != null && now.difference(lastRun!) < healthRefreshMinGap) {
+      return;
+    }
+    lastRun = now;
     try {
       final importer = await ref.read(healthImporterProvider.future);
       await importer.importSince();
     } on Object {
-      // Not available right now; the next launch tries again.
+      // Not available right now; the next resume tries again.
     }
-  }());
+  }
+
+  unawaited(run());
+  final listener = AppLifecycleListener(onResume: () => unawaited(run()));
+  ref.onDispose(listener.dispose);
 });
+
+/// Shortest interval between two automatic Health imports.
+const healthRefreshMinGap = Duration(minutes: 10);
 
 // ---------------------------------------------------------------------------
 // Foods
