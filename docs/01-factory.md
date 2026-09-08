@@ -65,6 +65,8 @@ Sophia is commercial. These need their developer support, and asking them well s
 
 8. **Compliance pack.** Full test reports naming *your* model, not a generic certificate: RED/EMC/RF, safety, RoHS per-component declarations, battery. Plus **EN 18031 evidence** for RED cybersecurity, which has been mandatory since August 2025 and is the most common gap in cheap BLE hardware. And their ISO 13485 scope, plus whatever validation sits behind any accuracy claim they make.
 
+9. **Which CF models buffer readings, how many, and does the clock persist across battery changes?** The SDK's `fetchHistoryData` exists on the Apple, Coconut, Ice and Torre-generation families, but the plugin source does not say which `CF###` codes keep readings on board, how deep the buffer is, or what happens to `measureTime` when the batteries come out. The app stores what the scale remembered under the scale's own timestamp and rejects anything before pairing or later than now (`app/lib/core/scale/stored_readings_sync.dart`); a clock that resets to 2000 on every battery change would make every buffered reading unusable, and we need to know that before the packaging says "records while your phone is away".
+
 ## 5. What you must own, or you do not have a brand
 
 Putting your name on their product makes you the **manufacturer** in UK and EU law, not a reseller. That is not a formality — it means you hold the technical file for ten years, you issue the Declaration of Conformity in your company's name, and your name and a UK address go on the product.
@@ -90,6 +92,6 @@ Most factories will run a first batch on neutral packaging and hold the printed 
 ## The order of operations
 
 1. Reply to Sophia. Re-open the conversation, ask for UK/Ireland exclusivity, ask for the model codes and the electrode configuration, ask whether the coupons can be reinstated.
-2. Email `yanfabu-5@lefu.cc` with the eight engineering questions.
+2. Email `yanfabu-5@lefu.cc` with the nine engineering questions.
 3. When they answer 1, 5 and 6, the app's hardware layer can be finished — it is roughly a day's work, because everything above that layer is already built and tested.
 4. Place the order on neutral packaging while the trademark filing runs.

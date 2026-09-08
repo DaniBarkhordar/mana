@@ -25,6 +25,8 @@ import 'package:mananu/features/settings/scale_pairing_sheet.dart';
 import 'package:mananu/features/settings/sources_screen.dart';
 import 'package:mananu/theme/tokens.dart';
 
+import '../scale/fake_scale_driver.dart';
+
 /// Renders the real screens at phone size and writes PNGs, so the design can
 /// be looked at without a device. Runs as an ordinary test everywhere (it
 /// exercises every screen with data); it only writes files when
@@ -77,11 +79,13 @@ void main() {
   Widget app({
     required Widget home,
     Brightness brightness = Brightness.light,
+    List<Override> overrides = const [],
   }) =>
       ProviderScope(
         overrides: [
           appServicesProvider.overrideWith((ref) async => services),
           foodCatalogProvider.overrideWith((ref) async => catalog),
+          ...overrides,
         ],
         // The boundary sits above the Navigator so sheets and dialogs are in
         // the picture too.
@@ -289,6 +293,87 @@ void main() {
     // The demo scale advertises after a short delay.
     await tester.pump(const Duration(milliseconds: 600));
     await shoot(tester, 'pairing');
+    await shutDown(tester);
+  });
+
+  /// The sheet's opening step over a real driver: the permission explainer
+  /// and, in the second pair, the scan led by the wake instruction. The
+  /// demo scale skips the explainer, so a scripted driver stands in.
+  for (final brightness in Brightness.values) {
+    final suffix = brightness == Brightness.dark ? '-dark' : '';
+    testWidgets('pairing permission$suffix', (tester) async {
+      await phone(tester);
+      final driver = FakeScaleDriver(
+        devices: const [
+          DiscoveredScale(
+            id: 'near',
+            name: 'Mananu Body',
+            kind: ScaleKind.body,
+            rssi: -48,
+            modelCode: 'CF577',
+          ),
+          DiscoveredScale(
+            id: 'far',
+            name: 'Mananu Body',
+            kind: ScaleKind.body,
+            rssi: -80,
+            modelCode: 'CF577',
+          ),
+        ],
+      );
+      await tester.pumpWidget(
+        app(
+          brightness: brightness,
+          overrides: [bodyScaleDriverProvider.overrideWithValue(driver)],
+          home: RepaintBoundary(
+            child: Builder(
+              builder: (context) => Scaffold(
+                body: Center(
+                  child: FilledButton(
+                    onPressed: () =>
+                        ScalePairingSheet.show(context, ScaleKind.body),
+                    child: const Text('Pair'),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.tap(find.text('Pair'));
+      await shoot(tester, 'pairing-permission$suffix');
+      await tester.tap(find.text('Continue'));
+      await shoot(tester, 'pairing-scan$suffix');
+      await shutDown(tester);
+      await driver.dispose();
+    });
+  }
+
+  testWidgets('pairing sheet dark', (tester) async {
+    await phone(tester);
+    await tester.pumpWidget(
+      app(
+        brightness: Brightness.dark,
+        home: RepaintBoundary(
+          child: Builder(
+            builder: (context) => Scaffold(
+              body: Center(
+                child: FilledButton(
+                  onPressed: () =>
+                      ScalePairingSheet.show(context, ScaleKind.body),
+                  child: const Text('Pair'),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.tap(find.text('Pair'));
+    await tester.pump(const Duration(milliseconds: 600));
+    await shoot(tester, 'pairing-dark');
     await shutDown(tester);
   });
 

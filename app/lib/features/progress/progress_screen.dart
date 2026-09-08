@@ -1060,26 +1060,31 @@ class _WearableRow extends StatelessWidget {
             ],
           ),
         ),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            Text(
-              c.sevenDay == null ? '—' : format(c.kind, c.sevenDay!),
-              style: MananuType.display.copyWith(
-                fontSize: 22,
-                color: scheme.onSurface,
+        // Flexible so the longest wording ("level with 0 min on 7h 20")
+        // wraps under the figure rather than pushing past the card edge.
+        Flexible(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                c.sevenDay == null ? '—' : format(c.kind, c.sevenDay!),
+                style: MananuType.display.copyWith(
+                  fontSize: 22,
+                  color: scheme.onSurface,
+                ),
               ),
-            ),
-            Text(
-              c.thirtyDay == null
-                  ? 'no 30-day baseline yet'
-                  : delta == null
-                      ? 'baseline ${format(c.kind, c.thirtyDay!)}'
-                      : '${_deltaWord(delta)} ${_formatDelta(c.kind, delta.abs())} '
-                          'on ${format(c.kind, c.thirtyDay!)}',
-              style: MananuType.caption.copyWith(fontSize: 11, color: muted),
-            ),
-          ],
+              Text(
+                c.thirtyDay == null
+                    ? 'no 30-day baseline yet'
+                    : delta == null
+                        ? 'baseline ${format(c.kind, c.thirtyDay!)}'
+                        : '${_deltaWord(delta)} ${_formatDelta(c.kind, delta.abs())} '
+                            'on ${format(c.kind, c.thirtyDay!)}',
+                textAlign: TextAlign.end,
+                style: MananuType.caption.copyWith(fontSize: 11, color: muted),
+              ),
+            ],
+          ),
         ),
       ],
     );

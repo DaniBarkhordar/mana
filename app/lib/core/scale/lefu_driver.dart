@@ -42,8 +42,10 @@ import 'dart:async';
 
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:pp_bluetooth_kit_flutter/ble/pp_bluetooth_kit_manager.dart';
+import 'package:pp_bluetooth_kit_flutter/ble/pp_peripheral_apple.dart';
 import 'package:pp_bluetooth_kit_flutter/ble/pp_peripheral_banana.dart';
 import 'package:pp_bluetooth_kit_flutter/ble/pp_peripheral_borre.dart';
+import 'package:pp_bluetooth_kit_flutter/ble/pp_peripheral_coconut.dart';
 import 'package:pp_bluetooth_kit_flutter/ble/pp_peripheral_dorre.dart';
 import 'package:pp_bluetooth_kit_flutter/ble/pp_peripheral_egg.dart';
 import 'package:pp_bluetooth_kit_flutter/ble/pp_peripheral_fish.dart';
@@ -206,6 +208,15 @@ abstract class LefuSdkChannel {
   Future<void> toZero();
   Future<void> impedanceSwitchControl({required bool on});
   Future<Map<String, dynamic>> fetchDeviceInfo();
+
+  /// Readings the connected scale recorded on its own, in the same shape as
+  /// [measurements] frames plus a `measuredAt` epoch-millisecond stamp when
+  /// the scale supplied one. Empty when the family keeps no memory.
+  Future<List<Map<String, dynamic>>> fetchStoredReadings(ScaleKind kind);
+
+  /// Ask the scale to forget its stored readings. Never called by the driver
+  /// itself — only by the sync, once every reading is in the database.
+  Future<void> clearStoredReadings(ScaleKind kind);
 }
 
 /// Driver proper.
@@ -403,8 +414,7 @@ class LefuScaleDriver implements ScaleDriver {
   /// off, so a reading is never recorded three times because three frames
   /// each carried the same impedance.
   ScaleFrame _frameFor(LefuMeasurement m) {
-    final settled =
-        m.isCompleted || (m.impedance != null && m.impedance! > 0);
+    final settled = m.isCompleted || (m.impedance != null && m.impedance! > 0);
     return ScaleFrame(
       weightKg: m.weightKg,
       stability: settled ? WeightStability.stable : WeightStability.live,
@@ -421,7 +431,10 @@ class LefuScaleDriver implements ScaleDriver {
     final weight = _num(raw['weight']) ?? _num(raw['lfWeightKg']);
     if (weight == null) return null;
 
-    final ms = _num(raw['measureTime']);
+    // `measuredAt` is our own key for a stored reading's stamp; live frames
+    // carry the SDK's `measureTime`. Both are epoch milliseconds, except on
+    // Android where a parsed date string can arrive in seconds.
+    final ms = _num(raw['measuredAt']) ?? _num(raw['measureTime']);
     final at = ms == null || ms <= 0
         ? DateTime.now()
         : DateTime.fromMillisecondsSinceEpoch(
@@ -485,6 +498,43 @@ class LefuScaleDriver implements ScaleDriver {
 
   @override
   Future<void> tare() => _channel.toZero();
+
+  /// The scale's own memory, through [parseMeasurement] so the unit handling
+  /// and the impedance-zero rule are the same as for a live frame. The
+  /// scale's timestamp is kept: three mornings stamped with now would be
+  /// three points on one day. A row the scale did not date is dropped rather
+  /// than guessed at.
+  @override
+  Future<List<StoredReading>> fetchStoredReadings() async {
+    if (kind != ScaleKind.body) return const [];
+    final rows = await _channel.fetchStoredReadings(kind);
+    final out = <StoredReading>[];
+    for (final raw in rows) {
+      final m = parseMeasurement(raw);
+      if (m == null || m.isOverload) continue;
+      if (!hasTimestamp(raw)) continue;
+      out.add(
+        StoredReading(
+          kg: m.weightKg,
+          at: m.measuredAt,
+          impedanceOhm: m.impedance,
+        ),
+      );
+    }
+    out.sort((a, b) => a.at.compareTo(b.at));
+    return out;
+  }
+
+  @override
+  Future<void> clearStoredReadings() => _channel.clearStoredReadings(kind);
+
+  /// Whether the vendor map carries a real measurement time. Zero is the
+  /// SDK's "not set" for `measureTime`, and [parseMeasurement] substitutes
+  /// now for it — right for a live frame, wrong for a stored one.
+  static bool hasTimestamp(Map<String, dynamic> raw) {
+    final ms = _num(raw['measuredAt']) ?? _num(raw['measureTime']);
+    return ms != null && ms > 0;
+  }
 
   @override
   Future<void> dispose() async {
@@ -757,6 +807,96 @@ class LefuSdkGateway {
     }
   }
 
+  /// How long to wait for the scale to answer a history request before
+  /// treating its memory as empty. The vendor's callback never fires at all
+  /// on a family that has nothing to send.
+  static const historyTimeout = Duration(seconds: 10);
+
+  /// The connected scale's stored readings, as measurement maps.
+  ///
+  /// Which families keep readings, from the vendored plugin's `ble/` sources:
+  /// `PPPeripheralApple`, `PPPeripheralCoconut` and `PPPeripheralIce` expose
+  /// `fetchHistoryData` plus `deleteHistoryData`; `PPPeripheralTorre`,
+  /// `PPPeripheralBorre` and `PPPeripheralDorre` expose a per-user fetch and
+  /// a "tourist" fetch (user id 30, the scale's own default) with no delete
+  /// — the scale manages its own memory. Mananu never provisions a user on
+  /// the scale, so the tourist slot is where its readings land. Every other
+  /// family (broadcast scales, the kitchen scales) has no memory.
+  Future<List<Map<String, dynamic>>> fetchHistory() async {
+    final device = connected;
+    if (device == null) return const [];
+    final family = device.family;
+    if (family == null || family.kind != ScaleKind.body) return const [];
+
+    final done = Completer<List<PPBodyBaseModel>>();
+    void callBack(List<PPBodyBaseModel> dataList, bool isSuccess) {
+      if (done.isCompleted) return;
+      done.complete(isSuccess ? dataList : const []);
+    }
+
+    switch (family) {
+      case LefuDeviceFamily.apple:
+        PPPeripheralApple.fetchHistoryData(callBack: callBack);
+      case LefuDeviceFamily.coconut:
+        PPPeripheralCoconut.fetchHistoryData(callBack: callBack);
+      case LefuDeviceFamily.ice:
+        PPPeripheralIce.fetchHistoryData(callBack: callBack);
+      case LefuDeviceFamily.torre:
+        PPPeripheralTorre.fetchTouristsHistoryData(callBack: callBack);
+      case LefuDeviceFamily.borre:
+        PPPeripheralBorre.fetchTouristsHistoryData(callBack: callBack);
+      case LefuDeviceFamily.dorre:
+        PPPeripheralDorre.fetchTouristsHistoryData(callBack: callBack);
+      default:
+        return const [];
+    }
+
+    final List<PPBodyBaseModel> models;
+    try {
+      models = await done.future.timeout(historyTimeout);
+    } on TimeoutException {
+      return const [];
+    }
+    return [
+      for (final m in models) historyToMap(m, device.model, ScaleKind.body),
+    ];
+  }
+
+  /// Tells the scale to drop what [fetchHistory] returned, on the families
+  /// that let us. Called by the sync only once the readings are stored.
+  Future<void> clearHistory() async {
+    switch (connected?.family) {
+      case LefuDeviceFamily.apple:
+        PPPeripheralApple.deleteHistoryData();
+      case LefuDeviceFamily.coconut:
+        PPPeripheralCoconut.deleteHistoryData();
+      case LefuDeviceFamily.ice:
+        PPPeripheralIce.deleteHistoryData();
+      default:
+        // Torre-generation scales keep their own house; nothing to send.
+        break;
+    }
+  }
+
+  /// Pure: a stored reading as a measurement map. Same keys as
+  /// [measurementToMap] — a stored reading is by definition complete — plus
+  /// `measuredAt`, the scale's own stamp in epoch milliseconds, or null when
+  /// the scale did not date it.
+  static Map<String, dynamic> historyToMap(
+    PPBodyBaseModel model,
+    PPDeviceModel device,
+    ScaleKind kind,
+  ) {
+    final map = measurementToMap(
+      PPMeasurementDataState.completed,
+      model,
+      device,
+      kind,
+    );
+    map['measuredAt'] = model.measureTime > 0 ? model.measureTime : null;
+    return map;
+  }
+
   /// Pure: the vendor's measurement callback as a plain map, weight in kg.
   ///
   /// `PPBodyBaseModel.weight` is an int whose unit depends on the device:
@@ -886,4 +1026,12 @@ class PpBluetoothKitChannel implements LefuSdkChannel {
     final current = _gateway.connected;
     return current == null ? const {} : LefuSdkGateway.deviceToMap(current);
   }
+
+  @override
+  Future<List<Map<String, dynamic>>> fetchStoredReadings(ScaleKind kind) =>
+      kind == ScaleKind.body ? _gateway.fetchHistory() : Future.value(const []);
+
+  @override
+  Future<void> clearStoredReadings(ScaleKind kind) =>
+      kind == ScaleKind.body ? _gateway.clearHistory() : Future.value();
 }

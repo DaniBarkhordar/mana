@@ -96,6 +96,26 @@ class BodyRepository {
     return id;
   }
 
+  /// Whether a live row already sits within [within] of [at] — the test the
+  /// stored-readings catch-up uses to tell "already recorded live" from
+  /// "new". Deleted rows do not count: a reading the user removed must not
+  /// come back through the scale's memory, but nor should it block a later
+  /// reading that merely shares its minute.
+  Future<bool> hasReadingNear(
+    DateTime at, {
+    Duration within = const Duration(seconds: 60),
+  }) async {
+    final utc = at.toUtc();
+    final q = _db.select(_db.bodyMeasurements)
+      ..where(
+        (b) =>
+            b.deletedAt.isNull() &
+            b.takenAt.isBetweenValues(utc.subtract(within), utc.add(within)),
+      )
+      ..limit(1);
+    return (await q.get()).isNotEmpty;
+  }
+
   Future<void> delete(String id) async {
     final now = DateTime.now().toUtc();
     await (_db.update(_db.bodyMeasurements)..where((b) => b.id.equals(id)))

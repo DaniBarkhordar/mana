@@ -118,6 +118,24 @@ class SegmentalImpedance {
       trunk != null;
 }
 
+/// A weigh-in the scale took while the phone was away, read back from the
+/// scale's own memory.
+///
+/// Body scales keep a handful of readings on board — the vendor's SDK calls
+/// them "history" — so a Tuesday step-on with the phone in another room is
+/// not lost. The scale's clock stamps [at]; whether that clock is trustworthy
+/// is decided by `StoredReadingsSync`, not here.
+class StoredReading {
+  const StoredReading({required this.kg, required this.at, this.impedanceOhm});
+
+  final double kg;
+  final double? impedanceOhm;
+
+  /// When the scale says it was taken. Honoured as given: a stored reading
+  /// stamped with now would put three mornings on the same chart point.
+  final DateTime at;
+}
+
 /// Everything a scale implementation must provide.
 abstract class ScaleDriver {
   /// Human-readable name for logs and the support inbox.
@@ -149,6 +167,18 @@ abstract class ScaleDriver {
 
   /// Zero the kitchen scale. No-op on a body scale.
   Future<void> tare();
+
+  /// Readings the scale recorded while nothing was listening, oldest first.
+  /// Only meaningful once connected. Drivers for hardware with no memory
+  /// (or that extend this class) inherit the empty answer.
+  Future<List<StoredReading>> fetchStoredReadings() async => const [];
+
+  /// Tell the scale it may forget what [fetchStoredReadings] returned.
+  ///
+  /// Deliberately separate from the fetch: the sync calls this only after
+  /// every reading has been written to the database, so a crash between
+  /// fetch and store leaves the readings on the scale for next time.
+  Future<void> clearStoredReadings() async {}
 
   Future<void> dispose();
 }
@@ -308,6 +338,9 @@ class SimulatedScaleDriver implements ScaleDriver {
   ScaleConnectionState _current = ScaleConnectionState.disconnected;
   bool _disposed = false;
 
+  /// Whether the demo backlog has been handed out since the last connect.
+  bool _backlogServed = false;
+
   bool get isConnected => _current == ScaleConnectionState.connected;
 
   void _setState(ScaleConnectionState s) {
@@ -327,10 +360,37 @@ class SimulatedScaleDriver implements ScaleDriver {
     // The app may have gone away during the delay; never start a stream on a
     // disposed driver.
     if (_disposed) return;
+    _backlogServed = false;
     _setState(ScaleConnectionState.connected);
     if (kind == ScaleKind.kitchen) _startKitchenStream();
     // The body scale waits to be stepped on: see [simulateReading].
   }
+
+  /// Demo: three mornings the scale "remembered" while the phone was away —
+  /// yesterday, two days ago and three days ago at half past seven, a few
+  /// hundred grams apart, impedance around 512 Ω. Served once per connect so
+  /// the catch-up is shown exactly once, the way a real scale empties its
+  /// memory after a sync.
+  @override
+  Future<List<StoredReading>> fetchStoredReadings() async {
+    if (kind != ScaleKind.body || !isConnected || _backlogServed) {
+      return const [];
+    }
+    _backlogServed = true;
+    final now = DateTime.now();
+    DateTime morning(int daysAgo) => DateTime(now.year, now.month, now.day)
+        .subtract(Duration(days: daysAgo))
+        .add(const Duration(hours: 7, minutes: 30));
+    return [
+      StoredReading(kg: bodyWeightKg + 0.8, at: morning(3), impedanceOhm: 515),
+      StoredReading(kg: bodyWeightKg + 0.5, at: morning(2), impedanceOhm: 508),
+      StoredReading(kg: bodyWeightKg + 0.3, at: morning(1), impedanceOhm: 512),
+    ];
+  }
+
+  /// Nothing to clear: the demo backlog is a one-shot per connect.
+  @override
+  Future<void> clearStoredReadings() async {}
 
   /// A real kitchen scale streams continuously while switched on.
   void _startKitchenStream() {
@@ -377,8 +437,7 @@ class SimulatedScaleDriver implements ScaleDriver {
     final jitter = kg == null ? (_random.nextDouble() - 0.5) * 0.6 : 0.0;
     final target = (((kg ?? bodyWeightKg) + jitter) * 10).round() / 10;
     if (kg != null) bodyWeightKg = kg;
-    final impedance = impedanceOhm ??
-        512 + (_random.nextDouble() - 0.5) * 24;
+    final impedance = impedanceOhm ?? 512 + (_random.nextDouble() - 0.5) * 24;
     for (var t = 1; t < 8; t++) {
       _emit(
         WeightSample(
