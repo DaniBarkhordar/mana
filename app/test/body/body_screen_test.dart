@@ -24,6 +24,10 @@ void main() {
   Widget app() => ProviderScope(
         overrides: [
           appServicesProvider.overrideWith((ref) async => services),
+          // No demo backlog: these tests reason about the readings they seed.
+          bodyScaleDriverProvider.overrideWithValue(
+            SimulatedScaleDriver(kind: ScaleKind.body, demoBacklog: false),
+          ),
         ],
         child: const MananuApp(),
       );
@@ -209,7 +213,15 @@ void main() {
     await tester.pump(const Duration(seconds: 1));
     await tester.tap(_tab('Body'));
     await tester.pump(const Duration(milliseconds: 300));
-    await tester.tap(find.text('Simulate stepping on'));
+    // The demo scale catches up on its stored backlog when it connects, so
+    // the tab may already hold readings; the demo control is then the
+    // app-bar icon rather than the empty state's button.
+    final emptyStateButton = find.text('Simulate stepping on');
+    await tester.tap(
+      emptyStateButton.evaluate().isEmpty
+          ? find.byTooltip('Simulate stepping on (demo)')
+          : emptyStateButton,
+    );
     await tester.pump(const Duration(seconds: 2));
     await settle(tester);
     await tester.pump(const Duration(seconds: 1));

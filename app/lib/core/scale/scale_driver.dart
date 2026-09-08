@@ -286,7 +286,12 @@ class MeasurementAggregator {
 /// It also means the whole app — screens, storage, sync, charts — can be built
 /// and reviewed before a single physical unit arrives from Shenzhen.
 class SimulatedScaleDriver implements ScaleDriver {
-  SimulatedScaleDriver({this.kind = ScaleKind.body});
+  SimulatedScaleDriver({this.kind = ScaleKind.body, this.demoBacklog = true});
+
+  /// Whether the body scale hands out a three-morning backlog on connect,
+  /// so the demo shows the catch-up. Tests that reason about a seeded
+  /// history switch it off rather than compensate for it.
+  final bool demoBacklog;
 
   final ScaleKind kind;
 
@@ -373,7 +378,10 @@ class SimulatedScaleDriver implements ScaleDriver {
   /// memory after a sync.
   @override
   Future<List<StoredReading>> fetchStoredReadings() async {
-    if (kind != ScaleKind.body || !isConnected || _backlogServed) {
+    if (kind != ScaleKind.body ||
+        !isConnected ||
+        !demoBacklog ||
+        _backlogServed) {
       return const [];
     }
     _backlogServed = true;

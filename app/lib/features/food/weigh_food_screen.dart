@@ -30,19 +30,18 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/data/providers.dart';
 import '../../core/food/food_identifier.dart';
-import '../../core/food/food_search.dart';
-import '../../core/food/starter_foods.dart';
 import '../../core/nutrition/models.dart';
 import '../../core/nutrition/portion.dart';
 import '../../core/scale/scale_driver.dart';
 import '../../theme/tokens.dart';
 import '../settings/paywall_screen.dart';
 import '../settings/scale_pairing_sheet.dart';
-import 'add_food_sheet.dart';
-import 'barcode_scan_screen.dart';
+import 'cooking_fat_sheet.dart';
 import 'describe_food_sheet.dart';
 import 'enter_grams_sheet.dart';
+import 'food_search_sheet.dart';
 import 'photo_identify_sheet.dart';
+import 'scale_readout.dart';
 
 class WeighFoodScreen extends ConsumerStatefulWidget {
   const WeighFoodScreen({super.key});
@@ -84,6 +83,7 @@ class _WeighFoodScreenState extends ConsumerState<WeighFoodScreen> {
     final live = ref.watch(liveGramsProvider);
     final components = ref.watch(weighSessionProvider);
     final totals = ref.watch(mealTotalsProvider);
+    final pendingFat = ref.watch(pendingCookingFatProvider);
     final connection = ref.watch(kitchenConnectionProvider).valueOrNull;
 
     final grams = live.valueOrNull?.grams ?? 0;
@@ -109,7 +109,7 @@ class _WeighFoodScreenState extends ConsumerState<WeighFoodScreen> {
       ),
       body: Column(
         children: [
-          _ScaleReadout(
+          ScaleReadout(
             grams: grams,
             delta: delta,
             isStable: isStable,
@@ -140,6 +140,7 @@ class _WeighFoodScreenState extends ConsumerState<WeighFoodScreen> {
           ),
           _ActionBar(
             pending: _pending,
+            pendingFat: pendingFat,
             scaleConnected: scaleConnected,
             canCapture: scaleConnected && isStable && delta > 0.5,
             deltaGrams: delta,
@@ -163,12 +164,7 @@ class _WeighFoodScreenState extends ConsumerState<WeighFoodScreen> {
   }
 
   Future<void> _pickFood() async {
-    final food = await showModalBottomSheet<FoodItem>(
-      context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
-      builder: (_) => const _FoodSearchSheet(),
-    );
+    final food = await FoodSearchSheet.show(context);
     if (food != null) setState(() => _pending = food);
   }
 
@@ -267,16 +263,16 @@ class _WeighFoodScreenState extends ConsumerState<WeighFoodScreen> {
       _fromPhoto = outcome.matched.where((m) => m.best != null).toList();
       if (outcome.picked != null) _pending = outcome.picked;
     });
-    if (outcome.wantsCookingFat) await _addCookingFat();
+    if (outcome.wantsCookingFat) {
+      await _addCookingFat(fatHint: outcome.fatHint);
+    }
   }
 
-  Future<void> _addCookingFat() async {
-    final capture = await showModalBottomSheet<CookingFatCapture>(
-      context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
-      builder: (_) => const _CookingFatSheet(),
-    );
+  /// Weigh the pan, weigh the oil, weigh what is left. The sheet drives the
+  /// scale itself; a pan still on the hob comes back here as `pendingFat`
+  /// and the action bar's chip reopens the sheet at the last step.
+  Future<void> _addCookingFat({String? fatHint}) async {
+    final capture = await CookingFatSheet.show(context, fatHint: fatHint);
     if (capture != null) {
       ref.read(weighSessionProvider.notifier).addCookingFat(capture);
     }
@@ -381,138 +377,6 @@ class _DemoLoadControls extends StatelessWidget {
               ],
             ),
           ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ScaleReadout extends StatelessWidget {
-  const _ScaleReadout({
-    required this.grams,
-    required this.delta,
-    required this.isStable,
-    required this.connection,
-    this.needsPairing = false,
-    this.onPair,
-  });
-
-  final double grams;
-  final double delta;
-  final bool isStable;
-  final ScaleConnectionState? connection;
-
-  /// No kitchen scale has been chosen on this phone yet.
-  final bool needsPairing;
-  final VoidCallback? onPair;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final connected = connection == ScaleConnectionState.connected;
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(
-        MananuSpacing.xl,
-        MananuSpacing.lg,
-        MananuSpacing.xl,
-        MananuSpacing.xl,
-      ),
-      color: scheme.surface,
-      child: Column(
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                width: 7,
-                height: 7,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: connected ? MananuColors.measured : MananuColors.mist,
-                ),
-              ),
-              const SizedBox(width: MananuSpacing.sm),
-              Text(
-                connected
-                    ? 'Scale connected'
-                    : needsPairing
-                        ? 'No scale paired'
-                        : 'Looking for your scale',
-                style: MananuType.label.copyWith(
-                  color: scheme.onSurface.withValues(alpha: 0.55),
-                ),
-              ),
-              if (needsPairing && !connected) ...[
-                const SizedBox(width: MananuSpacing.sm),
-                GestureDetector(
-                  onTap: onPair,
-                  child: Text(
-                    'PAIR',
-                    style: MananuType.label.copyWith(color: MananuColors.brass),
-                  ),
-                ),
-              ],
-            ],
-          ),
-          const SizedBox(height: MananuSpacing.lg),
-
-          // The readout. Tabular figures so digits do not shuffle sideways as
-          // the number climbs, and a colour that only settles once the reading
-          // has settled — the user should be able to tell at a glance, without
-          // reading a word.
-          AnimatedDefaultTextStyle(
-            duration: const Duration(milliseconds: 180),
-            style: MananuType.readout.copyWith(
-              color: isStable
-                  ? scheme.onSurface
-                  : scheme.onSurface.withValues(alpha: 0.45),
-            ),
-            child: Text(grams.toStringAsFixed(grams >= 1000 ? 0 : 1)),
-          ),
-          const SizedBox(height: MananuSpacing.sm),
-          // Settles with the reading: brass when the scale has locked, quiet
-          // while it is still moving.
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 220),
-            width: isStable ? 72 : 28,
-            height: 3,
-            decoration: BoxDecoration(
-              color: isStable
-                  ? MananuColors.brass
-                  : scheme.onSurface.withValues(alpha: 0.2),
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-          const SizedBox(height: MananuSpacing.sm),
-          Text(
-            isStable ? 'grams · settled' : 'grams',
-            style: MananuType.label.copyWith(
-              color: scheme.onSurface.withValues(alpha: 0.5),
-            ),
-          ),
-
-          if (delta > 0.5) ...[
-            const SizedBox(height: MananuSpacing.md),
-            Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: MananuSpacing.md,
-                vertical: MananuSpacing.sm,
-              ),
-              decoration: const BoxDecoration(
-                color: MananuColors.brassSoft,
-                borderRadius: MananuSpacing.radiusSm,
-              ),
-              child: Text(
-                '+${delta.toStringAsFixed(1)} g since last ingredient',
-                style: MananuType.caption.copyWith(
-                  color: MananuColors.brass,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ],
         ],
       ),
     );
@@ -694,6 +558,7 @@ enum _RowAction { edit, remove }
 class _ActionBar extends StatelessWidget {
   const _ActionBar({
     required this.pending,
+    required this.pendingFat,
     required this.scaleConnected,
     required this.canCapture,
     required this.deltaGrams,
@@ -707,6 +572,10 @@ class _ActionBar extends StatelessWidget {
   });
 
   final FoodItem? pending;
+
+  /// Oil weighed into a pan that is still cooking. The chip brings the
+  /// cooking-fat sheet back for the second reading.
+  final PendingCookingFat? pendingFat;
 
   /// With the scale there, the only way to add the pending food is to weigh
   /// it. Without it, the amount is entered and marked as an estimate.
@@ -744,6 +613,10 @@ class _ActionBar extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              if (pendingFat != null) ...[
+                _PendingFatChip(pending: pendingFat!, onTap: onCookingFat),
+                const SizedBox(height: MananuSpacing.sm),
+              ],
               Row(
                 children: [
                   Expanded(
@@ -809,39 +682,88 @@ class _ActionBar extends StatelessWidget {
       ),
       child: SafeArea(
         top: false,
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Expanded(
-              child: _ActionButton(
-                icon: Icons.search,
-                label: 'Search',
-                onTap: onPickFood,
-              ),
-            ),
-            Expanded(
-              child: _ActionButton(
-                icon: Icons.photo_camera_outlined,
-                label: 'Photo',
-                onTap: onPhoto,
-              ),
-            ),
-            Expanded(
-              child: _ActionButton(
-                icon: Icons.short_text,
-                label: 'Describe',
-                onTap: onDescribe,
-              ),
-            ),
-            Expanded(
-              child: _ActionButton(
-                icon: Icons.water_drop_outlined,
-                label: 'Cooking oil',
-                onTap: onCookingFat,
-                highlight: true,
-              ),
+            if (pendingFat != null) ...[
+              _PendingFatChip(pending: pendingFat!, onTap: onCookingFat),
+              const SizedBox(height: MananuSpacing.xs),
+            ],
+            Row(
+              children: [
+                Expanded(
+                  child: _ActionButton(
+                    icon: Icons.search,
+                    label: 'Search',
+                    onTap: onPickFood,
+                  ),
+                ),
+                Expanded(
+                  child: _ActionButton(
+                    icon: Icons.photo_camera_outlined,
+                    label: 'Photo',
+                    onTap: onPhoto,
+                  ),
+                ),
+                Expanded(
+                  child: _ActionButton(
+                    icon: Icons.short_text,
+                    label: 'Describe',
+                    onTap: onDescribe,
+                  ),
+                ),
+                Expanded(
+                  child: _ActionButton(
+                    icon: Icons.water_drop_outlined,
+                    label: 'Cooking oil',
+                    onTap: onCookingFat,
+                    highlight: true,
+                  ),
+                ),
+              ],
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// "Pan: 15 g olive oil captured · weigh what is left". The first pan
+/// reading is in; the food is cooking; one tap brings the sheet back for
+/// the second reading.
+class _PendingFatChip extends StatelessWidget {
+  const _PendingFatChip({required this.pending, required this.onTap});
+
+  final PendingCookingFat pending;
+  final VoidCallback onTap;
+
+  static String label(PendingCookingFat pending) =>
+      'Pan: ${pending.gramsAdded.toStringAsFixed(0)} g '
+      '${pending.fat.name.toLowerCase()} captured · weigh what is left';
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: ActionChip(
+        avatar: const Icon(
+          Icons.water_drop_outlined,
+          size: 16,
+          color: MananuColors.brass,
+        ),
+        label: Text(
+          label(pending),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        labelStyle: MananuType.caption.copyWith(
+          color: MananuColors.brass,
+          fontWeight: FontWeight.w600,
+        ),
+        backgroundColor: MananuColors.soft(context, MananuColors.brass),
+        side: BorderSide.none,
+        onPressed: onTap,
       ),
     );
   }
@@ -1107,289 +1029,6 @@ class _RecipeSaveSheetState extends ConsumerState<_RecipeSaveSheet> {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Sheets
-// ---------------------------------------------------------------------------
-
-class _FoodSearchSheet extends ConsumerStatefulWidget {
-  const _FoodSearchSheet();
-
-  @override
-  ConsumerState<_FoodSearchSheet> createState() => _FoodSearchSheetState();
-}
-
-class _FoodSearchSheetState extends ConsumerState<_FoodSearchSheet> {
-  final _controller = TextEditingController();
-  Timer? _debounce;
-  FoodSearchResult _result = FoodSearchResult.empty;
-  bool _busy = false;
-  String? _notice;
-
-  @override
-  void initState() {
-    super.initState();
-    unawaited(_run(''));
-  }
-
-  @override
-  void dispose() {
-    _debounce?.cancel();
-    _controller.dispose();
-    super.dispose();
-  }
-
-  void _onChanged(String value) {
-    _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 120), () => _run(value));
-  }
-
-  /// Local index; the whole round trip is a few milliseconds. Results for a
-  /// stale query are dropped so fast typing never shows the wrong list.
-  Future<void> _run(String query) async {
-    final search = await ref.read(foodSearchProvider.future);
-    final result = await search.search(query);
-    if (!mounted || _controller.text.trim() != query.trim()) return;
-    setState(() => _result = result);
-  }
-
-  /// Scan, then: the user's own cache, then Open Food Facts, then the form.
-  Future<void> _scanBarcode() async {
-    final code = await BarcodeScanScreen.scan(context);
-    if (code == null || !mounted) return;
-    setState(() {
-      _busy = true;
-      _notice = null;
-    });
-    final services = await ref.read(appServicesProvider.future);
-    var food = await services.userFoods.byBarcode(code);
-    if (food == null) {
-      final looked = await ref.read(openFoodFactsProvider).lookup(code);
-      if (looked != null) food = await services.userFoods.save(looked);
-    }
-    if (!mounted) return;
-    setState(() => _busy = false);
-    if (food != null) {
-      Navigator.of(context).pop(food);
-      return;
-    }
-    setState(
-      () => _notice = 'No match for that barcode. Add it from the pack once '
-          'and it is remembered.',
-    );
-    final added = await AddFoodSheet.show(context, barcode: code);
-    if (added != null && mounted) Navigator.of(context).pop(added);
-  }
-
-  Future<void> _addFromPack() async {
-    final added = await AddFoodSheet.show(
-      context,
-      initialName:
-          _controller.text.trim().isEmpty ? null : _controller.text.trim(),
-    );
-    if (added != null && mounted) Navigator.of(context).pop(added);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final items = _result.items;
-    final query = _controller.text.trim();
-
-    return DraggableScrollableSheet(
-      expand: false,
-      initialChildSize: 0.85,
-      minChildSize: 0.5,
-      builder: (context, controller) => Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              MananuSpacing.lg,
-              MananuSpacing.sm,
-              MananuSpacing.lg,
-              MananuSpacing.sm,
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _controller,
-                    autofocus: true,
-                    onChanged: _onChanged,
-                    textInputAction: TextInputAction.search,
-                    decoration: const InputDecoration(
-                      hintText: 'Search foods',
-                      prefixIcon: Icon(Icons.search),
-                      border: OutlineInputBorder(
-                        borderRadius: MananuSpacing.radiusMd,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: MananuSpacing.sm),
-                IconButton.outlined(
-                  tooltip: 'Scan a barcode',
-                  onPressed: _busy ? null : _scanBarcode,
-                  icon: _busy
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.qr_code_scanner),
-                ),
-              ],
-            ),
-          ),
-          if (_notice != null)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                MananuSpacing.lg,
-                0,
-                MananuSpacing.lg,
-                MananuSpacing.sm,
-              ),
-              child: Text(
-                _notice!,
-                style: MananuType.caption.copyWith(color: MananuColors.warning),
-              ),
-            ),
-          if (!_result.catalogueAvailable)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                MananuSpacing.lg,
-                0,
-                MananuSpacing.lg,
-                MananuSpacing.sm,
-              ),
-              child: Text(
-                'This build has no food database yet, so search covers your '
-                'own foods and a small starter list.',
-                style: MananuType.caption.copyWith(
-                  color: scheme.onSurface.withValues(alpha: 0.55),
-                ),
-              ),
-            ),
-          if (query.isEmpty && items.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                MananuSpacing.xl,
-                MananuSpacing.xs,
-                MananuSpacing.xl,
-                MananuSpacing.xs,
-              ),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  'RECENT',
-                  style: MananuType.label.copyWith(
-                    color: scheme.onSurface.withValues(alpha: 0.5),
-                  ),
-                ),
-              ),
-            ),
-          Expanded(
-            child: items.isEmpty
-                ? _NoResults(query: query)
-                : ListView.builder(
-                    controller: controller,
-                    itemCount: items.length,
-                    itemBuilder: (context, i) => _FoodResultTile(
-                      food: items[i],
-                      onTap: () => Navigator.of(context).pop(items[i]),
-                    ),
-                  ),
-          ),
-          Padding(
-            padding: EdgeInsets.fromLTRB(
-              MananuSpacing.lg,
-              MananuSpacing.sm,
-              MananuSpacing.lg,
-              MediaQuery.of(context).viewInsets.bottom + MananuSpacing.lg,
-            ),
-            child: OutlinedButton.icon(
-              onPressed: _addFromPack,
-              icon: const Icon(Icons.edit_note),
-              label: Text(
-                query.isEmpty
-                    ? 'Add a food from the pack'
-                    : "Add '$query' from the pack",
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _FoodResultTile extends ConsumerWidget {
-  const _FoodResultTile({required this.food, required this.onTap});
-
-  final FoodItem food;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final scheme = Theme.of(context).colorScheme;
-    final n = food.per100g;
-    // "We've learned your usual portion": the median of this person's own
-    // weighings, once there are five. Ground truth a photo app never has.
-    final usual = ref.watch(usualPortionProvider(food.id)).valueOrNull;
-    final parts = <String>[
-      '${n.kcal.round()} kcal / 100 ${food.per100ml ? 'ml' : 'g'}',
-      if (n.proteinG != null) '${n.proteinG!.toStringAsFixed(0)} g protein',
-      food.source.label,
-      if (usual != null)
-        'usually ${usual.grams.toStringAsFixed(0)} g (${usual.samples} weighings)',
-    ];
-    return ListTile(
-      title: Text(
-        food.displayName,
-        maxLines: 2,
-        overflow: TextOverflow.ellipsis,
-        style: MananuType.body,
-      ),
-      subtitle: Text(
-        parts.join(' · '),
-        style: MananuType.caption.copyWith(
-          color: scheme.onSurface.withValues(alpha: 0.6),
-        ),
-      ),
-      trailing: food.source.isReferenceData
-          ? null
-          : const ProvenanceBadge(weighed: false, dense: true),
-      onTap: onTap,
-    );
-  }
-}
-
-class _NoResults extends StatelessWidget {
-  const _NoResults({required this.query});
-
-  final String query;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(MananuSpacing.xxl),
-        child: Text(
-          query.isEmpty
-              ? 'Type a food, or scan the barcode on the pack.'
-              : "Nothing called '$query'. Try a shorter word, scan the "
-                  'barcode, or add it from the pack.',
-          textAlign: TextAlign.center,
-          style: MananuType.body.copyWith(
-            color: scheme.onSurface.withValues(alpha: 0.6),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 /// The components the last photo found, one tap each. The chosen one becomes
 /// the pending ingredient; the grams still come from the scale.
 class _FromPhotoStrip extends StatelessWidget {
@@ -1451,148 +1090,6 @@ class _FromPhotoStrip extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-/// Weigh the pan before and after and log what the food actually absorbed.
-class _CookingFatSheet extends StatefulWidget {
-  const _CookingFatSheet();
-
-  @override
-  State<_CookingFatSheet> createState() => _CookingFatSheetState();
-}
-
-class _CookingFatSheetState extends State<_CookingFatSheet> {
-  double _added = 15;
-  double _remaining = 3;
-  int _portions = 2;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final absorbed = (_added - _remaining).clamp(0, 999).toDouble();
-    final perPortion = absorbed / _portions;
-    final kcal = perPortion * 8.84; // olive oil, per gram
-
-    return Padding(
-      padding: EdgeInsets.only(
-        left: MananuSpacing.xl,
-        right: MananuSpacing.xl,
-        top: MananuSpacing.lg,
-        bottom: MediaQuery.of(context).viewInsets.bottom + MananuSpacing.xl,
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const Text('Cooking oil', style: MananuType.title),
-          const SizedBox(height: MananuSpacing.sm),
-          Text(
-            'Put the pan on the scale and tare it, add the oil, and read it. '
-            'Afterwards, weigh whatever is left in the pan. The difference went '
-            'into your food — and it is the one thing a photo can never see.',
-            style: MananuType.body.copyWith(
-              color: scheme.onSurface.withValues(alpha: 0.65),
-            ),
-          ),
-          const SizedBox(height: MananuSpacing.xl),
-          _Slider(
-            label: 'Oil added',
-            value: _added,
-            max: 60,
-            suffix: 'g',
-            onChanged: (v) => setState(() => _added = v),
-          ),
-          _Slider(
-            label: 'Left in the pan',
-            value: _remaining,
-            max: 60,
-            suffix: 'g',
-            onChanged: (v) => setState(() => _remaining = v),
-          ),
-          _Slider(
-            label: 'Portions from this pan',
-            value: _portions.toDouble(),
-            min: 1,
-            max: 8,
-            divisions: 7,
-            suffix: '',
-            onChanged: (v) => setState(() => _portions = v.round()),
-          ),
-          const SizedBox(height: MananuSpacing.lg),
-          Container(
-            padding: const EdgeInsets.all(MananuSpacing.lg),
-            decoration: const BoxDecoration(
-              color: MananuColors.brassSoft,
-              borderRadius: MananuSpacing.radiusMd,
-            ),
-            child: Text(
-              '${perPortion.toStringAsFixed(1)} g of oil per portion — '
-              '${kcal.round()} kcal that most apps miss entirely.',
-              style: MananuType.bodyStrong.copyWith(color: MananuColors.ink),
-            ),
-          ),
-          const SizedBox(height: MananuSpacing.lg),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(
-              CookingFatCapture(
-                fat: starterOliveOil,
-                gramsAdded: _added,
-                gramsRemaining: _remaining,
-                portions: _portions,
-              ),
-            ),
-            child: const Text('Add to meal'),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _Slider extends StatelessWidget {
-  const _Slider({
-    required this.label,
-    required this.value,
-    required this.max,
-    required this.suffix,
-    required this.onChanged,
-    this.min = 0,
-    this.divisions,
-  });
-
-  final String label;
-  final double value;
-  final double min;
-  final double max;
-  final int? divisions;
-  final String suffix;
-  final ValueChanged<double> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(label, style: MananuType.caption),
-            Text(
-              '${value.toStringAsFixed(suffix.isEmpty ? 0 : 1)}$suffix',
-              style: MananuType.number,
-            ),
-          ],
-        ),
-        Slider(
-          value: value,
-          min: min,
-          max: max,
-          divisions: divisions,
-          onChanged: onChanged,
-        ),
-      ],
     );
   }
 }

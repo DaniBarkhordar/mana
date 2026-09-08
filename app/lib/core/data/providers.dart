@@ -679,6 +679,20 @@ class WeighSessionNotifier extends StateNotifier<List<LoggedComponent>> {
 
   void addCookingFat(CookingFatCapture capture) {
     _session.addCookingFat(capture);
+    _pendingFat = null;
+    state = _session.components;
+  }
+
+  PendingCookingFat? _pendingFat;
+
+  /// Oil weighed into a pan that is still on the hob. Lives here, not in the
+  /// cooking-fat sheet, because the sheet is closed while the food cooks and
+  /// the second reading comes minutes later.
+  PendingCookingFat? get pendingFat => _pendingFat;
+
+  void setPendingFat(PendingCookingFat? pending) {
+    _pendingFat = pending;
+    // A fresh list so listeners (the action bar's chip) are told.
     state = _session.components;
   }
 
@@ -694,6 +708,7 @@ class WeighSessionNotifier extends StateNotifier<List<LoggedComponent>> {
 
   void reset() {
     _session.reset();
+    _pendingFat = null;
     state = const [];
   }
 
@@ -708,6 +723,12 @@ final weighSessionProvider =
 final mealTotalsProvider = Provider<MealTotals>((ref) {
   ref.watch(weighSessionProvider);
   return ref.watch(weighSessionProvider.notifier).totals();
+});
+
+/// The half-finished cooking-fat capture, if a pan is on the hob.
+final pendingCookingFatProvider = Provider<PendingCookingFat?>((ref) {
+  ref.watch(weighSessionProvider);
+  return ref.watch(weighSessionProvider.notifier).pendingFat;
 });
 
 // ---------------------------------------------------------------------------

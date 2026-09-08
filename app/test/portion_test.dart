@@ -119,6 +119,84 @@ void main() {
       );
       expect(capture.gramsAbsorbed, 0);
     });
+
+    test('the capture method travels into the component', () {
+      // Weighed is the default: the scale read both pan readings.
+      const weighed = CookingFatCapture(
+        fat: oliveOil,
+        gramsAdded: 20,
+        gramsRemaining: 6,
+        portions: 2,
+      );
+      expect(weighed.method, PortionMethod.weighed);
+      expect(weighed.componentForOnePortion().method, PortionMethod.weighed);
+
+      // Typed without a scale: the same grams, the same kcal, but never
+      // allowed to look weighed.
+      const typed = CookingFatCapture(
+        fat: oliveOil,
+        gramsAdded: 20,
+        gramsRemaining: 6,
+        portions: 2,
+        method: PortionMethod.manualGrams,
+      );
+      final c = typed.componentForOnePortion();
+      expect(c.method, PortionMethod.manualGrams);
+      expect(c.isCookingFat, isTrue);
+      expect(c.grams, closeTo(7, 1e-9));
+      expect(c.nutrients.kcal, closeTo(61.88, 0.01));
+      // The typed one carries the hand-entered quantity error, so its band
+      // is wider than the weighed one's for the same grams.
+      expect(
+        c.energyErrorKcal,
+        greaterThan(weighed.componentForOnePortion().energyErrorKcal),
+      );
+    });
+
+    test('only a weighed capture counts towards the weighed share', () {
+      const weighed = CookingFatCapture(
+        fat: oliveOil,
+        gramsAdded: 20,
+        gramsRemaining: 6,
+        portions: 2,
+      );
+      const typed = CookingFatCapture(
+        fat: oliveOil,
+        gramsAdded: 20,
+        gramsRemaining: 6,
+        portions: 2,
+        method: PortionMethod.manualGrams,
+      );
+      expect(
+        (WeighSession()..addCookingFat(weighed)).totals().weighedFraction,
+        closeTo(1, 1e-9),
+      );
+      expect(
+        (WeighSession()..addCookingFat(typed)).totals().weighedFraction,
+        0,
+      );
+    });
+
+    test('a pending pan completes into a capture with what is left', () {
+      const pending = PendingCookingFat(
+        fat: oliveOil,
+        gramsAdded: 15,
+        portions: 1,
+      );
+      final capture = pending.complete(gramsRemaining: 3, portions: 2);
+      expect(capture.gramsAdded, 15);
+      expect(capture.gramsRemaining, 3);
+      expect(capture.portions, 2);
+      expect(capture.method, PortionMethod.weighed);
+      // 12 g across two portions: 6 g, 6 × 8.84 = 53.04 kcal.
+      expect(capture.gramsPerPortion, closeTo(6, 1e-9));
+      expect(
+        capture.componentForOnePortion().nutrients.kcal,
+        closeTo(53.04, 1e-6),
+      );
+      // Portions default to the pan's own count when not overridden.
+      expect(pending.complete(gramsRemaining: 3).portions, 1);
+    });
   });
 
   group('Yield factors', () {

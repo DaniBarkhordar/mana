@@ -264,4 +264,46 @@ void main() {
     expect(find.textContaining('You can still'), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
   });
+
+  testWidgets(
+      '"Cooked in fat?" hands back the fat the model named, and never an '
+      'amount', (tester) async {
+    await tester.runAsync(
+      () => services.profiles.recordConsent(
+        ConsentRecord(
+          purpose: ConsentRecord.photoRecognition,
+          policyVersion: ConsentRecord.currentPolicyVersion,
+          granted: true,
+          grantedAt: DateTime.now(),
+        ),
+      ),
+    );
+    PhotoOutcome? outcome;
+    await tester.pumpWidget(
+      host(
+        open: (context) => Center(
+          child: FilledButton(
+            onPressed: () async =>
+                outcome = await PhotoIdentifySheet.show(context),
+            child: const Text('Photo'),
+          ),
+        ),
+      ),
+    );
+    await settle(tester);
+    await tester.tap(find.text('Photo'));
+    await tester
+        .runAsync(() => Future<void>.delayed(const Duration(milliseconds: 50)));
+    await settle(tester);
+
+    expect(find.text('Cooked in fat?'), findsOneWidget);
+    expect(find.textContaining('Looks like ghee'), findsOneWidget);
+    await tester.tap(find.text('Cooked in fat?'));
+    await settle(tester);
+
+    expect(outcome!.wantsCookingFat, isTrue);
+    expect(outcome!.fatHint, 'ghee');
+    expect(outcome!.picked, isNull);
+    await tester.pumpWidget(const SizedBox());
+  });
 }
