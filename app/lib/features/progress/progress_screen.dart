@@ -16,7 +16,9 @@ import 'package:intl/intl.dart';
 import '../../core/data/providers.dart';
 import '../../theme/instruments.dart';
 import '../../theme/tokens.dart';
+import 'in_your_data_card.dart';
 import 'progress_providers.dart';
+import 'weekly_review_card.dart';
 
 class ProgressScreen extends ConsumerWidget {
   const ProgressScreen({super.key});
@@ -57,6 +59,8 @@ class ProgressScreen extends ConsumerWidget {
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         const SizedBox(height: MananuSpacing.sm),
+                        const WeeklyReviewCard(),
+                        const SizedBox(height: MananuSpacing.xl),
                         MananuSection(
                           title: 'Weight',
                           child: _WeightCard(series: series),
@@ -96,6 +100,8 @@ class ProgressScreen extends ConsumerWidget {
                             child: _WearablesCard(comparisons: wearables),
                           ),
                         ],
+                        const SizedBox(height: MananuSpacing.xl),
+                        const InYourDataCard(),
                       ],
                     ),
             ),

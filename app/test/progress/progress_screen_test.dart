@@ -194,6 +194,9 @@ void main() {
     await tester.tap(_tab('Progress'));
     await settle(tester);
 
+    // The weekly review sits above the chart, so bring the control up.
+    await tester.ensureVisible(find.text('90d'));
+    await settle(tester);
     await tester.tap(find.text('90d'));
     await settle(tester);
     expect(find.text('WEIGHT · 90 DAYS'), findsOneWidget);
@@ -221,6 +224,56 @@ void main() {
     expect(find.text('From Apple Health'), findsOneWidget);
     expect(find.text('Sleep'), findsOneWidget);
     expect(find.text('7-DAY AVERAGE · 30-DAY BASELINE'), findsOneWidget);
+    await shutDown(tester);
+  });
+
+  testWidgets('the weekly review leads the tab and opens the evening tags',
+      (tester) async {
+    await seedPersona();
+    await pumpApp(tester);
+    await settle(tester);
+    await tester.tap(_tab('Progress'));
+    await settle(tester);
+
+    // The review sits above the weight card, labelled with its ISO week.
+    expect(find.text('WEEKLY REVIEW'), findsOneWidget);
+    expect(find.textContaining('WEEK '), findsOneWidget);
+    final review = tester.getTopLeft(find.text('WEEKLY REVIEW'));
+    final weight = tester.getTopLeft(find.text('WEIGHT · 30 DAYS'));
+    expect(review.dy, lessThan(weight.dy));
+
+    // Seven days of meals ending today: the weighed share, the streak, and
+    // the demo scale's mornings, all as plain sentences.
+    expect(
+      find.textContaining('of your calories this week'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('before 10:00'), findsOneWidget);
+    expect(find.textContaining('Weight median'), findsOneWidget);
+    expect(find.textContaining('Sleep median'), findsOneWidget);
+    expect(find.textContaining('derived from'), findsOneWidget);
+
+    // The tag sheet opens from the card and writes through the repository.
+    await tester.ensureVisible(find.text('Evening tags'));
+    await settle(tester);
+    await tester.tap(find.text('Evening tags'));
+    await settle(tester);
+    expect(
+      find.text(
+        'These stay on your phone and only ever compare your own days.',
+      ),
+      findsOneWidget,
+    );
+    await tester.tap(find.text('A drink this evening'));
+    await settle(tester);
+    final tags = await tester.runAsync(
+      () => (services.db.select(services.db.observations)
+            ..where((o) => o.kind.equals('tag_alcohol')))
+          .get(),
+    );
+    expect(tags, hasLength(1));
+    expect(tags!.single.source, 'diary');
+    expect(tags.single.value, 1);
     await shutDown(tester);
   });
 
