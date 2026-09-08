@@ -285,14 +285,4 @@ class _SourcesScreenState extends ConsumerState<SourcesScreen> {
       ),
     );
   }
-
-  /// "apple_health" → "Apple Health", "mananu_body_scale" → "Mananu body scale".
-  static String sourceLabel(String source) => switch (source) {
-        'apple_health' => 'Apple Health',
-        'health_connect' => 'Health Connect',
-        'simulated_scale' => 'Demo scale',
-        'mananu_body_scale' => 'Mananu body scale',
-        'mananu_kitchen_scale' => 'Mananu kitchen scale',
-        _ => source.replaceAll('_', ' '),
-      };
 }

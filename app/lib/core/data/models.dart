@@ -149,6 +149,20 @@ class ConsentRecord {
   final DateTime grantedAt;
 }
 
+/// The name a source wears on screen: `apple_health` → "Apple Health",
+/// `mananu_body_scale` → "Mananu body scale", `simulated_scale` → "Demo
+/// scale". One place, so the Sources screen, the [SourceBadge] on a wearable
+/// value and the export all agree on what to call a device.
+String sourceLabel(String source) => switch (source) {
+      'apple_health' => 'Apple Health',
+      'health_connect' => 'Health Connect',
+      'simulated_scale' => 'Demo scale',
+      'mananu_body_scale' => 'Mananu body scale',
+      'mananu_kitchen_scale' => 'Mananu kitchen scale',
+      'diary' => 'Diary',
+      _ => source.replaceAll('_', ' '),
+    };
+
 // ---------------------------------------------------------------------------
 // Enum codecs. Dart names are camelCase; the Postgres enums are snake_case.
 // ---------------------------------------------------------------------------

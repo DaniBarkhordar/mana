@@ -23,6 +23,7 @@ import 'package:mananu/features/settings/account_screen.dart';
 import 'package:mananu/features/settings/paywall_screen.dart';
 import 'package:mananu/features/settings/scale_pairing_sheet.dart';
 import 'package:mananu/features/settings/sources_screen.dart';
+import 'package:mananu/theme/instruments.dart';
 import 'package:mananu/theme/tokens.dart';
 
 /// Renders the real screens at phone size and writes PNGs, so the design can
@@ -292,6 +293,25 @@ void main() {
     await shutDown(tester);
   });
 
+  // The shared provenance instruments side by side, so a change to one of
+  // them can be looked at in both themes without opening every screen.
+  for (final brightness in Brightness.values) {
+    testWidgets('instruments ${brightness.name}', (tester) async {
+      await phone(tester);
+      await tester.pumpWidget(
+        app(
+          home: const RepaintBoundary(child: _InstrumentsGallery()),
+          brightness: brightness,
+        ),
+      );
+      await shoot(
+        tester,
+        brightness == Brightness.dark ? 'instruments-dark' : 'instruments',
+      );
+      await shutDown(tester);
+    });
+  }
+
   testWidgets('onboarding', (tester) async {
     await phone(tester);
     final fresh = AppServices.inMemory();
@@ -312,6 +332,143 @@ void main() {
     await shutDown(tester);
     await fresh.db.close();
   });
+}
+
+/// Every shared instrument in one column: the split arc, a banded sparkline,
+/// the source badge grammar, the four range states, a baseline in progress
+/// and a derived-from note.
+class _InstrumentsGallery extends StatelessWidget {
+  const _InstrumentsGallery();
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Scaffold(
+      body: ListView(
+        padding: const EdgeInsets.symmetric(horizontal: MananuSpacing.lg),
+        children: [
+          const MananuHeader(label: 'Design system', title: 'Instruments'),
+          const MananuSection(
+            title: 'Arc, measured and estimated',
+            child: Card(
+              child: Padding(
+                padding: EdgeInsets.all(MananuSpacing.lg),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    ArcGauge(
+                      progress: 0.8,
+                      measuredFraction: 0.6,
+                      child: Text('1,640', style: MananuType.number),
+                    ),
+                    ArcGauge(
+                      progress: 0.8,
+                      child: Text('1,640', style: MananuType.number),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: MananuSpacing.xl),
+          const MananuSection(
+            title: 'Sparkline with a band',
+            child: Card(
+              child: Padding(
+                padding: EdgeInsets.all(MananuSpacing.lg),
+                child: Row(
+                  children: [
+                    Text('HRV', style: MananuType.bodyStrong),
+                    Spacer(),
+                    Sparkline(
+                      values: [42, 44, 41, 47, 45, 39, 43],
+                      band: (lo: 40, hi: 46),
+                      width: 140,
+                      height: 40,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: MananuSpacing.xl),
+          const MananuSection(
+            title: 'Source badges',
+            child: Card(
+              child: Padding(
+                padding: EdgeInsets.all(MananuSpacing.lg),
+                child: Wrap(
+                  spacing: MananuSpacing.sm,
+                  runSpacing: MananuSpacing.sm,
+                  children: [
+                    SourceBadge('apple_health', sourceName: 'Oura'),
+                    SourceBadge('apple_health'),
+                    SourceBadge('health_connect', sourceName: 'Garmin'),
+                    SourceBadge('mananu_body_scale'),
+                    SourceBadge('simulated_scale'),
+                    SourceBadge('diary'),
+                    ProvenanceBadge(weighed: true),
+                    ProvenanceBadge(weighed: false),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: MananuSpacing.xl),
+          MananuSection(
+            title: 'Range markers',
+            child: Card(
+              child: Padding(
+                padding: const EdgeInsets.all(MananuSpacing.lg),
+                child: Wrap(
+                  spacing: MananuSpacing.sm,
+                  runSpacing: MananuSpacing.sm,
+                  children: [
+                    for (final state in RangeState.values) RangeMarker(state),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: MananuSpacing.xl),
+          MananuSection(
+            title: 'Baseline and derived',
+            child: Card(
+              child: Padding(
+                padding: const EdgeInsets.all(MananuSpacing.lg),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const CalibrationProgress(
+                      6,
+                      14,
+                      label: 'nights from Oura',
+                    ),
+                    const SizedBox(height: MananuSpacing.lg),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.baseline,
+                      textBaseline: TextBaseline.alphabetic,
+                      children: [
+                        const Text('47', style: MananuType.display),
+                        const SizedBox(width: MananuSpacing.xs),
+                        Text(
+                          'ms',
+                          style: MananuType.title.copyWith(
+                            color: scheme.onSurface.withValues(alpha: 0.6),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const DerivedNote(14, 'nights'),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 const _rice = FoodItem(
