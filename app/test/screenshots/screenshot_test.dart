@@ -19,6 +19,7 @@ import 'package:mananu/core/nutrition/portion.dart';
 import 'package:mananu/core/scale/scale_driver.dart';
 import 'package:mananu/features/food/recipes_screen.dart';
 import 'package:mananu/features/food/weigh_food_screen.dart';
+import 'package:mananu/features/progress/progress_screen.dart';
 import 'package:mananu/features/settings/account_screen.dart';
 import 'package:mananu/features/settings/paywall_screen.dart';
 import 'package:mananu/features/settings/scale_pairing_sheet.dart';
@@ -198,6 +199,69 @@ void main() {
     await shoot(tester, 'progress');
     await shutDown(tester);
   });
+
+  // The weekly review at the top of Progress, the evening-tags sheet, and
+  // the "in your data" card at the bottom, each in both themes.
+  for (final brightness in Brightness.values) {
+    final dark = brightness == Brightness.dark;
+    String named(String base) => dark ? '$base-dark' : base;
+
+    Future<void> openProgress(WidgetTester tester) async {
+      await phone(tester);
+      await tester.runAsync(() => _seedWeek(services));
+      await tester.pumpWidget(
+        app(
+          home: const RepaintBoundary(child: MananuRoot()),
+          brightness: brightness,
+        ),
+      );
+      for (var i = 0; i < 10; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      await tester.tap(
+        find.descendant(
+          of: find.byType(NavigationBar),
+          matching: find.text('Progress'),
+        ),
+      );
+      for (var i = 0; i < 10; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+    }
+
+    testWidgets('weekly review ${brightness.name}', (tester) async {
+      await openProgress(tester);
+      expect(find.text('WEEKLY REVIEW'), findsOneWidget);
+      await shoot(tester, named('weekly-review'));
+      await shutDown(tester);
+    });
+
+    testWidgets('evening tags ${brightness.name}', (tester) async {
+      await openProgress(tester);
+      await tester.ensureVisible(find.text('Evening tags'));
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.tap(find.text('Evening tags'));
+      await tester.pump(const Duration(milliseconds: 400));
+      await shoot(tester, named('evening-tags'));
+      await shutDown(tester);
+    });
+
+    testWidgets('in your data ${brightness.name}', (tester) async {
+      await openProgress(tester);
+      final list = find.descendant(
+        of: find.byType(ProgressScreen),
+        matching: find.byType(ListView),
+      );
+      await tester.dragUntilVisible(
+        find.text('IN YOUR DATA'),
+        list,
+        const Offset(0, -400),
+      );
+      await tester.drag(list, const Offset(0, -600));
+      await shoot(tester, named('in-your-data'));
+      await shutDown(tester);
+    });
+  }
 
   testWidgets('weigh food', (tester) async {
     await phone(tester);
@@ -586,11 +650,49 @@ Future<void> _seed(AppServices s) async {
 }
 
 /// The six days before today, so the week's bars, averages and streak are
-/// populated, plus a fortnight of sleep and steps so the wearables card
-/// renders. Today itself comes from [_seed].
+/// populated; three weeks before that so the weekly review has a previous
+/// week to set against and the "in your data" card has two arms of eight;
+/// and four weeks of sleep, resting HR, HRV and steps so the wearables card
+/// and the review's baselines render. Today itself comes from [_seed].
+///
+/// Every odd day from a week back is a late-dinner day (21:30), and the
+/// morning after one reads a few bpm higher, so the association card has a
+/// sentence to show rather than only a baseline in progress.
 Future<void> _seedWeek(AppServices s) async {
   final now = DateTime.now();
   final today = DateTime(now.year, now.month, now.day);
+  bool lateDay(int d) => d >= 7 && d.isOdd;
+  for (var d = 27; d >= 7; d--) {
+    final day = today.subtract(Duration(days: d));
+    final lunch = WeighSession()
+      ..addTared(food: _chicken, grams: 140 + (d % 4) * 10)
+      ..addTared(food: _rice, grams: 70 + (d % 3) * 5);
+    await s.meals.logMeal(
+      components: lunch.components,
+      eatenAt: day.add(const Duration(hours: 13)),
+      slot: MealSlot.lunch,
+    );
+    final dinner = WeighSession()
+      ..addTared(food: _chicken, grams: 170)
+      ..addTared(food: _rice, grams: 75)
+      ..addCookingFat(
+        const CookingFatCapture(
+          fat: _oil,
+          gramsAdded: 12,
+          gramsRemaining: 2,
+          portions: 2,
+        ),
+      );
+    await s.meals.logMeal(
+      components: dinner.components,
+      eatenAt: day.add(
+        lateDay(d)
+            ? const Duration(hours: 21, minutes: 30)
+            : const Duration(hours: 19, minutes: 15),
+      ),
+      slot: MealSlot.dinner,
+    );
+  }
   for (var d = 6; d >= 1; d--) {
     final day = today.subtract(Duration(days: d));
     final breakfast = WeighSession()
@@ -641,7 +743,7 @@ Future<void> _seedWeek(AppServices s) async {
       );
     }
   }
-  for (var d = 13; d >= 0; d--) {
+  for (var d = 27; d >= 0; d--) {
     final at = today.add(const Duration(hours: 12)).subtract(Duration(days: d));
     await s.observations.record(
       kind: 'sleep_minutes',
@@ -650,14 +752,26 @@ Future<void> _seedWeek(AppServices s) async {
       source: 'apple_health',
       takenAt: at,
       method: 'imported',
+      raw: const {'sourceName': 'Oura'},
     );
+    // The morning after a late dinner (day d + 1) reads three higher.
     await s.observations.record(
       kind: 'resting_hr_bpm',
-      value: 54 + (d % 3),
+      value: 54 + (d % 3) + (lateDay(d + 1) ? 3 : 0),
       unit: 'bpm',
       source: 'apple_health',
       takenAt: at,
       method: 'imported',
+      raw: const {'sourceName': 'Oura'},
+    );
+    await s.observations.record(
+      kind: 'hrv_sdnn_ms',
+      value: 44 + (d % 5) * 2,
+      unit: 'ms',
+      source: 'apple_health',
+      takenAt: at,
+      method: 'imported',
+      raw: const {'sourceName': 'Oura'},
     );
     await s.observations.record(
       kind: 'steps',
