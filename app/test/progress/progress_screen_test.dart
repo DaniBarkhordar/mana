@@ -226,7 +226,14 @@ void main() {
     expect(find.text('Sleep'), findsOneWidget);
     expect(find.text('7-DAY AVERAGE · 30-DAY BASELINE'), findsOneWidget);
 
-    // Every value is one tap from its readings.
+    // Every value is one tap from its readings. The wearables card sits
+    // below the fold, so bring it on screen first.
+    await tester.scrollUntilVisible(
+      find.text('Sleep'),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await settle(tester);
     await tester.tap(find.text('Sleep'));
     await settle(tester);
     expect(find.byType(ObservationDetailScreen), findsOneWidget);
@@ -237,6 +244,12 @@ void main() {
       'sleep_minutes',
     );
     await tester.pageBack();
+    await settle(tester);
+    await tester.scrollUntilVisible(
+      find.text('WEIGHT · 30 DAYS'),
+      -200,
+      scrollable: find.byType(Scrollable).first,
+    );
     await settle(tester);
     await tester.tap(find.text('WEIGHT · 30 DAYS'));
     await settle(tester);
