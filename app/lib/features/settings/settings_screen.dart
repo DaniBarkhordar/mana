@@ -8,6 +8,7 @@ import '../../theme/tokens.dart';
 import '../food/recipes_screen.dart';
 import 'account_screen.dart';
 import 'paywall_screen.dart';
+import 'reminders_section.dart';
 import 'scale_pairing_sheet.dart';
 import 'sources_screen.dart';
 
@@ -141,6 +142,8 @@ class SettingsScreen extends ConsumerWidget {
                 ),
               ),
             ),
+            const SizedBox(height: MananuSpacing.xl),
+            const RemindersSection(),
             const SizedBox(height: MananuSpacing.xl),
             MananuSection(
               title: 'About',

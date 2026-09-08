@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/data/providers.dart';
+import 'core/notifications/reminders_providers.dart';
 import 'features/body/body_screen.dart';
 import 'features/food/weigh_food_screen.dart';
 import 'features/home/today_screen.dart';
@@ -72,6 +73,7 @@ class _MananuShellState extends ConsumerState<MananuShell> {
     ref.watch(scaleSessionProvider);
     ref.watch(bodyReadingRecorderProvider);
     ref.watch(healthRefreshProvider);
+    ref.watch(remindersProvider);
     final index = ref.watch(shellIndexProvider);
 
     return Scaffold(
