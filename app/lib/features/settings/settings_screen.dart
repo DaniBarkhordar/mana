@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/data/providers.dart';
+import '../../core/legal.dart';
 import '../../core/scale/scale_driver.dart';
 import '../../theme/instruments.dart';
 import '../../theme/tokens.dart';
 import '../food/recipes_screen.dart';
 import 'account_screen.dart';
+import 'data_residency_screen.dart';
 import 'goals_screen.dart';
 import 'paywall_screen.dart';
 import 'scale_pairing_sheet.dart';
@@ -151,43 +153,61 @@ class SettingsScreen extends ConsumerWidget {
             MananuSection(
               title: 'About',
               child: Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(MananuSpacing.lg),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Mananu is not a medical device. It does not diagnose, '
-                        'treat, cure or prevent any disease. Do not use the body '
-                        'scale if you have a pacemaker or another implanted '
-                        'electronic device.',
-                        style: MananuType.caption.copyWith(
-                          color: MananuColors.warning,
+                child: Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.all(MananuSpacing.lg),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Mananu is not a medical device. It does not diagnose, '
+                            'treat, cure or prevent any disease. Do not use the body '
+                            'scale if you have a pacemaker or another implanted '
+                            'electronic device.',
+                            style: MananuType.caption.copyWith(
+                              color: MananuColors.warning,
+                            ),
+                          ),
+                          const SizedBox(height: MananuSpacing.sm),
+                          const LegalLinks(),
+                          const SizedBox(height: MananuSpacing.md),
+                          Text(
+                            // The shipped catalogue carries its own attribution
+                            // string, written by the build that made it.
+                            ref
+                                    .watch(foodCatalogProvider)
+                                    .valueOrNull
+                                    ?.attribution ??
+                                "Nutrition data: McCance and Widdowson's The "
+                                    'Composition of Foods Integrated Dataset, used '
+                                    'under the Open Government Licence v3.0; USDA '
+                                    'FoodData Central, public domain; barcode data '
+                                    'from Open Food Facts under the Open Database '
+                                    'Licence.',
+                            style: MananuType.caption.copyWith(
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurface
+                                  .withValues(alpha: 0.5),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Divider(height: 1),
+                    _NavTile(
+                      icon: Icons.location_on_outlined,
+                      title: 'Where your data lives',
+                      subtitle: 'On this phone, in the UK, and nowhere else. '
+                          'Each fact next to the setting that shows it.',
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => const DataResidencyScreen(),
                         ),
                       ),
-                      const SizedBox(height: MananuSpacing.md),
-                      Text(
-                        // The shipped catalogue carries its own attribution
-                        // string, written by the build that made it.
-                        ref
-                                .watch(foodCatalogProvider)
-                                .valueOrNull
-                                ?.attribution ??
-                            "Nutrition data: McCance and Widdowson's The "
-                                'Composition of Foods Integrated Dataset, used '
-                                'under the Open Government Licence v3.0; USDA '
-                                'FoodData Central, public domain; barcode data '
-                                'from Open Food Facts under the Open Database '
-                                'Licence.',
-                        style: MananuType.caption.copyWith(
-                          color: Theme.of(context)
-                              .colorScheme
-                              .onSurface
-                              .withValues(alpha: 0.5),
-                        ),
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
             ),

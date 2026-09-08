@@ -20,6 +20,7 @@ import 'package:mananu/core/scale/scale_driver.dart';
 import 'package:mananu/features/food/recipes_screen.dart';
 import 'package:mananu/features/food/weigh_food_screen.dart';
 import 'package:mananu/features/settings/account_screen.dart';
+import 'package:mananu/features/settings/data_residency_screen.dart';
 import 'package:mananu/features/settings/paywall_screen.dart';
 import 'package:mananu/features/settings/scale_pairing_sheet.dart';
 import 'package:mananu/features/settings/sources_screen.dart';
@@ -238,6 +239,27 @@ void main() {
       app(home: const RepaintBoundary(child: PaywallScreen())),
     );
     await shoot(tester, 'paywall');
+    await shutDown(tester);
+  });
+
+  testWidgets('data residency', (tester) async {
+    await phone(tester);
+    await tester.pumpWidget(
+      app(home: const RepaintBoundary(child: DataResidencyScreen())),
+    );
+    await shoot(tester, 'data-residency');
+    await shutDown(tester);
+  });
+
+  testWidgets('data residency dark', (tester) async {
+    await phone(tester);
+    await tester.pumpWidget(
+      app(
+        home: const RepaintBoundary(child: DataResidencyScreen()),
+        brightness: Brightness.dark,
+      ),
+    );
+    await shoot(tester, 'data-residency-dark');
     await shutDown(tester);
   });
 

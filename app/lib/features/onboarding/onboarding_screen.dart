@@ -32,6 +32,7 @@ import '../../core/bia/equations.dart';
 import '../../core/data/providers.dart';
 import '../../theme/instruments.dart';
 import '../../theme/tokens.dart';
+import '../settings/data_residency_screen.dart';
 import 'goal_controls.dart';
 
 enum _Step { welcome, aboutYou, goal, target, activity, consent, summary }
@@ -834,6 +835,19 @@ class _ConsentPage extends StatelessWidget {
             style: MananuType.caption.copyWith(
               color: scheme.onSurface.withValues(alpha: 0.6),
             ),
+          ),
+        ),
+        // The whole of the privacy policy, in the app, before the decision.
+        Align(
+          alignment: Alignment.centerLeft,
+          child: TextButton(
+            style: TextButton.styleFrom(padding: EdgeInsets.zero),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => const DataResidencyScreen(),
+              ),
+            ),
+            child: const Text('How Mananu handles your data'),
           ),
         ),
         const SizedBox(height: MananuSpacing.md),
