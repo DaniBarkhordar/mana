@@ -81,6 +81,33 @@ class ObservationRepository {
         );
   }
 
+  /// Tombstones one observation. Never a hard delete: the row has to reach
+  /// the other devices as a deletion, so it is marked and left for sync,
+  /// exactly as a meal or a body reading is.
+  Future<void> delete(String id) async {
+    final now = DateTime.now().toUtc();
+    await (_db.update(_db.observations)..where((o) => o.id.equals(id))).write(
+      ObservationsCompanion(
+        deletedAt: Value(now),
+        updatedAt: Value(now),
+        syncedAt: const Value(null),
+      ),
+    );
+  }
+
+  /// Undoes [delete]. The row is dirtied again so the restore travels the
+  /// same way the deletion did; last-write-wins on the server settles it.
+  Future<void> restore(String id) async {
+    final now = DateTime.now().toUtc();
+    await (_db.update(_db.observations)..where((o) => o.id.equals(id))).write(
+      ObservationsCompanion(
+        deletedAt: const Value(null),
+        updatedAt: Value(now),
+        syncedAt: const Value(null),
+      ),
+    );
+  }
+
   /// The distinct sources that have ever reported, for the Settings screen's
   /// "which device said what".
   Future<List<String>> sources() async {
