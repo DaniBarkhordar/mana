@@ -1060,26 +1060,32 @@ class _WearableRow extends StatelessWidget {
             ],
           ),
         ),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            Text(
-              c.sevenDay == null ? '—' : format(c.kind, c.sevenDay!),
-              style: MananuType.display.copyWith(
-                fontSize: 22,
-                color: scheme.onSurface,
+        // Bounded so a long caption ("down 1,234 on 9,876") wraps rather
+        // than pushing the row past the card; the left column takes the rest.
+        ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 168),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                c.sevenDay == null ? '—' : format(c.kind, c.sevenDay!),
+                style: MananuType.display.copyWith(
+                  fontSize: 22,
+                  color: scheme.onSurface,
+                ),
               ),
-            ),
-            Text(
-              c.thirtyDay == null
-                  ? 'no 30-day baseline yet'
-                  : delta == null
-                      ? 'baseline ${format(c.kind, c.thirtyDay!)}'
-                      : '${_deltaWord(delta)} ${_formatDelta(c.kind, delta.abs())} '
-                          'on ${format(c.kind, c.thirtyDay!)}',
-              style: MananuType.caption.copyWith(fontSize: 11, color: muted),
-            ),
-          ],
+              Text(
+                c.thirtyDay == null
+                    ? 'no 30-day baseline yet'
+                    : delta == null
+                        ? 'baseline ${format(c.kind, c.thirtyDay!)}'
+                        : '${_deltaWord(delta)} ${_formatDelta(c.kind, delta.abs())} '
+                            'on ${format(c.kind, c.thirtyDay!)}',
+                textAlign: TextAlign.end,
+                style: MananuType.caption.copyWith(fontSize: 11, color: muted),
+              ),
+            ],
+          ),
         ),
       ],
     );
