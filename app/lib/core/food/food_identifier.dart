@@ -1,11 +1,13 @@
-/// Photo identification: the camera says what the food is, the scale says
-/// how much. Nothing in this file asks a model for grams, calories or macros
-/// (CLAUDE.md rule 1) — the request cannot even carry the question.
+/// Food identification: the camera, or the user's own words, say what the
+/// food is; the scale says how much. Nothing in this file asks a model for
+/// grams, calories or macros (CLAUDE.md rule 1) — the request cannot even
+/// carry the question.
 ///
-/// The pipeline: downscale the photo to 512 px on the device, send it with a
-/// little context to the `identify-food` Edge Function, get back candidate
-/// names each with search queries for the offline catalogue, and match those
-/// queries locally. The user picks the row; the grams come off the scale.
+/// The pipeline: downscale the photo to 512 px on the device (or take a
+/// short typed description instead), send it with a little context to the
+/// `identify-food` Edge Function, get back candidate names each with search
+/// queries for the offline catalogue, and match those queries locally. The
+/// user picks the row; the grams come off the scale.
 library;
 
 import 'dart:convert';
@@ -17,26 +19,49 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../nutrition/models.dart';
 import 'food_search.dart';
 
-/// What goes up. Mirrors `IdentifyRequest` in the Edge Function.
+/// What goes up. Mirrors `IdentifyRequest` in the Edge Function. A request
+/// carries a photo, a description, or both; never a question about
+/// quantity.
 class IdentifyRequest {
   const IdentifyRequest({
-    required this.imageBase64,
+    this.imageBase64,
+    this.description,
     this.localTime,
     this.locale,
     this.recentFoods = const [],
     this.hint,
     this.measuredGrams,
-  });
+  }) : assert(
+          imageBase64 != null || description != null,
+          'a request needs a photo or a description to identify',
+        );
 
-  final String imageBase64;
+  /// The longest a description can be, matching the function's limit.
+  static const maxDescriptionLength = 300;
+
+  final String? imageBase64;
+
+  /// The food in the user's own words — "chicken tikka with rice and a
+  /// naan" — for logging without a camera or a scale. Identification only,
+  /// exactly like a photo.
+  final String? description;
   final String? localTime;
   final String? locale;
   final List<String> recentFoods;
   final String? hint;
   final double? measuredGrams;
 
+  String? get _trimmedDescription {
+    final d = description?.trim();
+    if (d == null || d.isEmpty) return null;
+    return d.length > maxDescriptionLength
+        ? d.substring(0, maxDescriptionLength)
+        : d;
+  }
+
   Map<String, Object?> toJson() => {
-        'imageBase64': imageBase64,
+        if (imageBase64 != null) 'imageBase64': imageBase64,
+        if (_trimmedDescription != null) 'description': _trimmedDescription,
         if (localTime != null) 'localTime': localTime,
         if (locale != null) 'locale': locale,
         if (recentFoods.isNotEmpty)

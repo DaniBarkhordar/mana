@@ -289,6 +289,15 @@ class WeighSession {
     _components.removeAt(index);
   }
 
+  /// Swap one component for a corrected version of itself, in place, so the
+  /// order the meal was built in survives an edit. The running tare is not
+  /// touched: what the scale read is still what the scale read, and an edit
+  /// is the user's number, not the platform's.
+  void replaceAt(int index, LoggedComponent component) {
+    if (index < 0 || index >= _components.length) return;
+    _components[index] = component;
+  }
+
   void reset() {
     _components.clear();
     _lastStableGrams = 0;
