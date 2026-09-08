@@ -111,6 +111,46 @@
       "y": 2180,
       "w": 900,
       "h": 760
+    },
+    {
+      "file": "Progress.dc.html",
+      "title": "Progress",
+      "x": 0,
+      "y": 3620,
+      "w": 390,
+      "h": 2200
+    },
+    {
+      "file": "ProgressDark.dc.html",
+      "title": "Progress \u00b7 dark",
+      "x": 470,
+      "y": 3620,
+      "w": 390,
+      "h": 2200
+    },
+    {
+      "file": "Goals.dc.html",
+      "title": "Goals",
+      "x": 940,
+      "y": 3620,
+      "w": 390,
+      "h": 1660
+    },
+    {
+      "file": "OnboardingGoal.dc.html",
+      "title": "Onboarding \u00b7 goal",
+      "x": 1410,
+      "y": 3620,
+      "w": 390,
+      "h": 844
+    },
+    {
+      "file": "OnboardingSummary.dc.html",
+      "title": "Onboarding \u00b7 summary",
+      "x": 1880,
+      "y": 3620,
+      "w": 390,
+      "h": 1100
     }
   ],
   "annotations": [
@@ -141,6 +181,13 @@
       "y": 2070,
       "w": 440,
       "text": "Second row: the screens behind Settings. Pairing is the only place a scale is chosen. Account links the temporary user rather than creating a second one. Plus leads with what is free. Sources names the device behind every value."
+    },
+    {
+      "id": "note-row3",
+      "x": 0,
+      "y": 3510,
+      "w": 440,
+      "text": "Third row: the week and the plan. Progress answers whether the week added up \u2014 weight against the goal, energy against the target, the diary kept or not \u2014 and a weekly average of estimated meals is still called an estimate. Goals and the two onboarding steps show the target being set: an arc, an Estimated badge, the equation it came from, and a plain sentence that it moves with every reading."
     }
   ],
   "launch": {
