@@ -7,6 +7,7 @@ import 'package:mananu/core/data/providers.dart';
 import 'package:mananu/core/nutrition/models.dart';
 import 'package:mananu/core/nutrition/portion.dart';
 import 'package:mananu/core/scale/scale_driver.dart';
+import 'package:mananu/features/settings/data_residency_screen.dart';
 import 'package:mananu/features/settings/settings_screen.dart';
 
 /// Boots the whole app on an in-memory database with no backend configured —
@@ -289,6 +290,32 @@ void main() {
       find.text('Saved on this phone. This build has no cloud backup.'),
       findsOneWidget,
     );
+    await shutDown(tester);
+  });
+
+  testWidgets('Settings, About, Where your data lives reaches the screen',
+      (tester) async {
+    await pumpApp(tester);
+    await completeOnboarding(tester);
+    await tester.tap(_tab('Settings'));
+    await tester.pump(const Duration(milliseconds: 300));
+    // The About card is the last thing on Settings, well below the fold.
+    await tester.dragUntilVisible(
+      find.text('Where your data lives'),
+      find.descendant(
+        of: find.byType(SettingsScreen),
+        matching: find.byType(ListView),
+      ),
+      const Offset(0, -200),
+    );
+    // Built is not the same as on screen: the About card is one child.
+    await tester.ensureVisible(find.text('Where your data lives'));
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.tap(find.text('Where your data lives'));
+    await settle(tester);
+    expect(find.byType(DataResidencyScreen), findsOneWidget);
+    // No backend in this app, so the screen says local-only, as Backup does.
+    expect(find.textContaining('local-only'), findsOneWidget);
     await shutDown(tester);
   });
 
