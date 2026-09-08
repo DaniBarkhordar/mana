@@ -116,6 +116,15 @@ def icon(name, size=24, color="currentColor", stroke=1.8):
         "back": '<path d="M19 12H5M12 19l-7-7 7-7"/>',
         "recipe": '<path d="M6 3v18M6 3c3 0 4 2 4 5s-1 5-4 5M18 3v18M18 3c-2 0-3 4-3 7s1 3 3 3"/>',
         "restaurant": '<path d="M7 2v20M7 2c2 0 3 2 3 5s-1 5-3 5-3-2-3-5 1-5 3-5zM17 2v20M17 2c-1.5 0-3 3-3 7 0 2 1 3 3 3"/>',
+        # Progress tab: a trend line over a baseline, the same idea as the
+        # sparkline the Today card carries.
+        "insights": '<path d="M3 20h18M4 15l5-6 4 3 7-8"/><path d="M16 4h4v4"/>',
+        "moon": '<path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/>',
+        "walk": '<circle cx="13.5" cy="4" r="1.8"/><path d="M9.5 21l2.5-6.5M14.5 21l-2-5-2.5-2.5 1-5.5 3 2.5 3 1.5M7 12.5l2.5-4 3-1"/>',
+        "calendar": '<rect x="3" y="4.5" width="18" height="16" rx="2.5"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4M8 14h3"/>',
+        "arrow-se": '<path d="M7 7l10 10M17 9v8H9"/>',
+        "arrow-e": '<path d="M5 12h14M13 6l6 6-6 6"/>',
+        "arrow-ne": '<path d="M7 17L17 7M9 7h8v8"/>',
     }[name]
     return (
         f'<svg width="{size}" height="{size}" viewBox="0 0 24 24" fill="none" '
@@ -195,7 +204,7 @@ def badge(p, weighed=True, label=None, dense=False):
     )
 
 
-def progress(p, pct, height=8, color=BRASS):
+def progress_bar(p, pct, height=8, color=BRASS):
     return (
         f'<div style="height:{height}px;border-radius:999px;background:{p["raised"]};overflow:hidden;">'
         f'<div style="width:{pct}%;height:100%;background:{color};border-radius:999px;"></div></div>'
@@ -219,7 +228,8 @@ def outlined_button(p, label, height=54):
 
 
 def nav_bar(p, selected):
-    items = [("today", "Today"), ("scale", "Body"), ("settings", "Settings")]
+    # The four tabs in app.dart's order. Icon names double as the selection key.
+    items = [("today", "Today"), ("scale", "Body"), ("insights", "Progress"), ("settings", "Settings")]
     cells = []
     for key, label in items:
         on = key == selected
@@ -234,6 +244,31 @@ def nav_bar(p, selected):
         f'<div style="flex:none;height:88px;padding:12px 8px 20px 8px;box-sizing:border-box;background:{p["surface"]};'
         f'border-top:1px solid {p["line"]};display:flex;align-items:flex-start;">{"".join(cells)}</div>'
     )
+
+
+def segmented(p, options, selected, height=32):
+    # _RangeControl and its kin: outlined pills, the chosen one on brass soft
+    # (raised, in the dark theme). Styled by hand in the app for the same
+    # reason: Material's selected face would be the reserved measured green.
+    cells = []
+    for i, label in enumerate(options):
+        on = label == selected
+        radius = ("16px 0 0 16px" if i == 0 else "0 16px 16px 0" if i == len(options) - 1 else "0")
+        border_l = "" if i == 0 else f"border-left:1px solid {p['line']};"
+        cells.append(
+            f'<div style="height:{height}px;padding:0 12px;display:flex;align-items:center;border-radius:{radius};{border_l}'
+            f'background:{p["indicator"] if on else "transparent"};{T_CAPTION}font-weight:600;color:{p["on"] if on else alpha(p, 0.55)};">{label}</div>'
+        )
+    return f'<div style="display:inline-flex;border:1px solid {p["line"]};border-radius:{height // 2 + 1}px;overflow:hidden;flex:none;">{"".join(cells)}</div>'
+
+
+def slider_track(p, pct):
+    # Material slider as the theme paints it: brass active track and thumb.
+    return f"""<div style="position:relative;height:20px;display:flex;align-items:center;">
+    <div style="position:absolute;left:0;right:0;height:4px;border-radius:999px;background:{BRASS_SOFT};"></div>
+    <div style="position:absolute;left:0;width:{pct}%;height:4px;border-radius:999px;background:{BRASS};"></div>
+    <div style="position:absolute;left:calc({pct}% - 10px);width:20px;height:20px;border-radius:999px;background:{BRASS};box-shadow:0 1px 4px rgba(13,16,18,0.2);"></div>
+  </div>"""
 
 
 def fab(p, label="Weigh food"):
@@ -369,7 +404,7 @@ def today(p, height=None):
         return f"""<div style="flex:1;display:flex;flex-direction:column;">
   <div style="display:flex;align-items:baseline;"><div style="{T_NUMBER}font-size:17px;color:{p['on']};">{grams}</div><div style="{T_CAPTION}color:{alpha(p, 0.5)};">&nbsp;g</div></div>
   <div style="height:4px;"></div>
-  <div style="padding-right:12px;">{progress(p, pct, 5, colour)}</div>
+  <div style="padding-right:12px;">{progress_bar(p, pct, 5, colour)}</div>
   <div style="height:4px;"></div>
   <div style="{T_CAPTION}font-size:11px;color:{alpha(p, 0.5)};">{label} · of {target} g</div>
 </div>"""
@@ -634,10 +669,11 @@ def photo_scan(p, height=None):
     return doc(weigh_food_inner(p, capturing=False, from_photo=False, grams="0.0", stable=False) + sheet, p, height=height)
 
 
-def body_chart(p):
+def weight_svg(p, start="8 Aug", end="6 Sep"):
     # 30 days of morning weights (dots) with the 7-day rolling median (line).
     # Drawn deliberately: the dots are faint so the noise is visible and the
-    # trend is what the eye lands on.
+    # trend is what the eye lands on. Body and Progress draw the same chart
+    # so the two tabs read as one instrument.
     raw = WEIGHTS
     med = []
     for i in range(len(raw)):
@@ -661,9 +697,14 @@ def body_chart(p):
 {dots}
 <polyline points="{line}" fill="none" stroke="{BRASS}" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
 <circle cx="{x(29):.1f}" cy="{y(med[-1]):.1f}" r="4" fill="{BRASS}" stroke="{p['surface']}" stroke-width="2"/>
-<text x="{L}" y="{H - 8}" font-size="11" fill="{alpha(p, 0.45)}" font-family="{FONT}">8 Aug</text>
-<text x="{W - R}" y="{H - 8}" font-size="11" fill="{alpha(p, 0.45)}" font-family="{FONT}" text-anchor="end">6 Sep</text>
+<text x="{L}" y="{H - 8}" font-size="11" fill="{alpha(p, 0.45)}" font-family="{FONT}">{start}</text>
+<text x="{W - R}" y="{H - 8}" font-size="11" fill="{alpha(p, 0.45)}" font-family="{FONT}" text-anchor="end">{end}</text>
 </svg>"""
+    return svg
+
+
+def body_chart(p):
+    svg = weight_svg(p)
     return card(p, f"""<div style="{T_LABEL}text-transform:uppercase;color:{alpha(p, 0.5)};">Weight · 30 days</div>
 <div style="height:12px;"></div>
 {svg}
@@ -1018,6 +1059,380 @@ def components(p, height=None):
     return doc(inner, p, width=900, height=height or 760)
 
 
+# ---------------------------------------------------------------- progress
+
+# The seeded week from test/screenshots/screenshot_test.dart's _seedWeek:
+# six weighed days, two of them with an estimated meal out, nothing logged
+# yet on the Sunday the screen is opened. Against the persona's 3,038 kcal
+# maintenance target, five of the six landed within ten per cent.
+WEEK_KCAL = [2960, 3120, 2890, 2215, 3050, 2805, 0]
+WEEK_TARGET = 3038
+
+
+def energy_svg(p, kcal, goal, today=6):
+    # Seven bars, space-around, against a faint band at ±10% of the target.
+    # An unlogged past day shows a stub so the gap reads as a gap.
+    W, H, LBL = 308, 140, 20
+    max_y = max(max(kcal), goal * 1.1) * 1.15
+    slot = W / 7
+    bw = 18
+    def y(v): return H - v * H / max_y
+    band = (
+        f'<rect x="0" y="{y(goal * 1.1):.1f}" width="{W}" height="{y(goal * 0.9) - y(goal * 1.1):.1f}" '
+        f'fill="rgba(200,145,47,0.12)"/>'
+    )
+    bars, labels = [], []
+    for i, v in enumerate(kcal):
+        cx = slot * i + slot / 2
+        x = cx - bw / 2
+        if v > 0:
+            bars.append(f'<rect x="{x:.1f}" y="{y(v):.1f}" width="{bw}" height="{H - y(v):.1f}" rx="4" fill="{BRASS}"/>')
+        elif i <= today:
+            bars.append(f'<rect x="{x:.1f}" y="{y(max_y * 0.02):.1f}" width="{bw}" height="{H - y(max_y * 0.02):.1f}" fill="{p["line"]}"/>')
+        weight = 700 if i == today else 400
+        labels.append(
+            f'<text x="{cx:.1f}" y="{H + 15}" font-size="11" font-weight="{weight}" text-anchor="middle" '
+            f'fill="{alpha(p, 0.55)}" font-family="{FONT}">{"MTWTFSS"[i]}</text>'
+        )
+    return (
+        f'<svg width="{W}" height="{H + LBL}" viewBox="0 0 {W} {H + LBL}" aria-label="Energy, this week">'
+        f'{band}{"".join(bars)}{"".join(labels)}</svg>'
+    )
+
+
+def day_grid(p, weeks=12, width=308, gap=3):
+    # _DayGrid: one square a day, rows are weekdays, columns are weeks,
+    # oldest on the left. Brass by how much of the day was logged; the
+    # empty squares are the honest part.
+    cell = (width - gap * (weeks - 1)) / weeks
+    # Level per (week, weekday), 0–3. A habit that took a few weeks to
+    # settle, a holiday week in the middle, and a full final week bar today.
+    def level(w, d):
+        if w == weeks - 1:
+            return 0 if d == 6 else 3
+        if w < 2:
+            return (w + d) % 3 if d < 5 else 0
+        if w == 6:
+            return 1 if d in (0, 3) else 0
+        return 3 if (w * 7 + d) % 5 else 2 if (w + d) % 3 else 1
+    fill = {
+        0: alpha(p, 0.06),
+        1: "rgba(200,145,47,0.35)",
+        2: "rgba(200,145,47,0.65)",
+        3: BRASS,
+    }
+    rows = []
+    for d in range(7):
+        cells = []
+        for w in range(weeks):
+            today = w == weeks - 1 and d == 6
+            border = f"border:1px solid {alpha(p, 0.5)};box-sizing:border-box;" if today else ""
+            cells.append(f'<div style="width:{cell:.1f}px;height:{cell:.1f}px;border-radius:2.5px;background:{fill[level(w, d)]};{border}"></div>')
+        rows.append(f'<div style="display:flex;gap:{gap}px;">{"".join(cells)}</div>')
+    return f'<div style="display:flex;flex-direction:column;gap:{gap}px;">{"".join(rows)}</div>'
+
+
+def progress(p, height=None):
+    weight = section(p, "Weight", card(p, f"""<div style="display:flex;align-items:center;">
+  <div style="flex:1;{T_LABEL}text-transform:uppercase;color:{alpha(p, 0.45)};">Weight · 30 days</div>
+  {segmented(p, ["30d", "90d"], "30d")}
+</div>
+<div style="height:12px;"></div>
+{weight_svg(p)}
+<div style="height:12px;"></div>
+<div style="display:flex;align-items:center;gap:8px;">
+  {icon("trend-down", 18, BRASS, 2)}
+  <div style="{T_BODY}color:{p['on']};">0.37 kg per week down over three weeks</div>
+</div>
+<div style="height:8px;"></div>
+<div style="display:flex;align-items:center;gap:8px;">
+  {badge(p, True, "Measured", dense=True)}
+  <div style="flex:1;{T_CAPTION}font-size:11px;color:{alpha(p, 0.55)};text-wrap:pretty;">From your scale. The line is the 7-day median; the dots are each reading.</div>
+</div>""", padding="16px 24px"))
+
+    def macro(label, grams, target, colour):
+        pct = round(min(grams / target, 1) * 100)
+        return f"""<div style="flex:1;display:flex;flex-direction:column;">
+  <div style="display:flex;align-items:baseline;"><div style="{T_NUMBER}font-size:17px;color:{p['on']};">{grams}</div><div style="{T_CAPTION}color:{alpha(p, 0.5)};">&nbsp;g</div></div>
+  <div style="height:4px;"></div>
+  <div style="padding-right:12px;">{progress_bar(p, pct, 5, colour)}</div>
+  <div style="height:4px;"></div>
+  <div style="{T_CAPTION}font-size:11px;color:{alpha(p, 0.5)};">{label} · of {target} g</div>
+</div>"""
+
+    week_label = f'<div style="{T_LABEL}text-transform:uppercase;color:{alpha(p, 0.45)};">31 Aug – 6 Sep</div>'
+    energy = section(p, f'<div style="display:flex;align-items:center;"><div style="flex:1;">Energy</div>{week_label}</div>', card(p, f"""<div style="display:flex;align-items:baseline;gap:6px;">
+  <div style="{T_DISPLAY}font-size:34px;color:{p['on']};">2,840</div>
+  <div style="{T_CAPTION}color:{alpha(p, 0.55)};">kcal a day</div>
+</div>
+<div style="{T_CAPTION}color:{alpha(p, 0.55)};">Average over 6 days logged · target 3,038</div>
+<div style="height:16px;"></div>
+{energy_svg(p, WEEK_KCAL, WEEK_TARGET)}
+<div style="height:12px;"></div>
+<div style="{T_BODY}color:{p['on']};">5 days within 10% of target, of the 6 logged.</div>
+<div style="height:12px;"></div>
+<div style="display:flex;align-items:center;gap:8px;">
+  {badge(p, True, "84% weighed")}
+  <div style="flex:1;{T_CAPTION}color:{alpha(p, 0.55)};text-wrap:pretty;">The rest was estimated. Weighing it would tighten these figures.</div>
+</div>
+<div style="height:8px;"></div>
+<div style="{T_CAPTION}font-size:11px;color:{alpha(p, 0.4)};text-wrap:pretty;">From your fat-free mass (Cunningham 1980), low active ×1.65, to maintain.</div>""", padding="24px 24px 16px 24px"))
+
+    macros = section(p, "Macros", card(p, f"""<div style="display:flex;">{macro("Protein", 158, 126, PROTEIN)}{macro("Carbs", 312, 420, CARBS)}{macro("Fat", 88, 95, FAT)}</div>
+<div style="height:12px;"></div>
+<div style="display:flex;align-items:center;gap:8px;">
+  {badge(p, True, "Mostly weighed", dense=True)}
+  <div style="flex:1;{T_CAPTION}font-size:11px;color:{alpha(p, 0.55)};">Daily averages over the 6 days you logged.</div>
+</div>""", padding="24px"))
+
+    def stat(value, label):
+        return f"""<div style="flex:1;display:flex;flex-direction:column;">
+  <div style="{T_DISPLAY}font-size:24px;color:{p['on']};">{value}</div>
+  <div style="{T_CAPTION}font-size:11px;color:{alpha(p, 0.55)};">{label}</div>
+</div>"""
+
+    consistency = section(p, "Consistency", card(p, f"""<div style="display:flex;">{stat("6 of 7", "days logged this week")}{stat("6 days", "current streak")}</div>
+<div style="height:16px;"></div>
+{day_grid(p)}
+<div style="height:12px;"></div>
+<div style="{T_CAPTION}font-size:11px;color:{alpha(p, 0.55)};text-wrap:pretty;">Twelve weeks, one square a day. Darker is closer to a full day; grey is nothing logged.</div>""", padding="24px"))
+
+    def wearable(name, label, value, delta, last=False):
+        divider = "" if last else f'<div style="height:1px;background:{p["line"]};margin:12px 0;"></div>'
+        return f"""<div style="display:flex;align-items:flex-start;gap:12px;">
+  {icon(name, 20, BRASS)}
+  <div style="flex:1;display:flex;flex-direction:column;">
+    <div style="{T_BODY_STRONG}color:{p['on']};">{label}</div>
+    <div style="{T_CAPTION}font-size:11px;color:{alpha(p, 0.55)};">From Apple Health</div>
+  </div>
+  <div style="display:flex;flex-direction:column;align-items:flex-end;">
+    <div style="{T_DISPLAY}font-size:22px;color:{p['on']};">{value}</div>
+    <div style="{T_CAPTION}font-size:11px;color:{alpha(p, 0.55)};white-space:nowrap;">{delta}</div>
+  </div>
+</div>{divider}"""
+
+    wearables = section(p, "Wearables", card(p, f"""<div style="{T_LABEL}text-transform:uppercase;color:{alpha(p, 0.55)};">7-day average · 30-day baseline</div>
+<div style="height:12px;"></div>
+{wearable("moon", "Sleep", "7h 05", "down 12 min on 7h 17")}
+{wearable("heart", "Resting HR", "55 bpm", "level with 55 bpm")}
+{wearable("walk", "Steps", "8,640", "up 420 on 8,220", last=True)}
+<div style="height:12px;"></div>
+<div style="{T_CAPTION}font-size:11px;color:{alpha(p, 0.55)};text-wrap:pretty;">Averages of what your wearable reported. Mananu does not measure these itself.</div>""", padding="24px"))
+
+    inner = f"""{status_space()}
+{header(p, "Progress", "This week")}
+{scroll(weight + energy + macros + consistency + wearables)}
+{nav_bar(p, "insights")}
+{fab(p)}
+"""
+    return doc(inner, p, height=height)
+
+
+# ---------------------------------------------------------------- goals
+
+def selectable(p, inner, selected, padding="16px"):
+    # SelectableCard: the brass chosen state every chooser in the app uses.
+    bg = BRASS_SOFT if selected else p["surface"]
+    bd = f"1.5px solid {BRASS}" if selected else f"1px solid {p['line']}"
+    return f'<div style="border-radius:14px;background:{bg};border:{bd};padding:{padding};">{inner}</div>'
+
+
+def goal_cards(p, selected):
+    # GoalCards: three, one per GoalKind, copy verbatim from energy_target.dart.
+    goals = [
+        ("arrow-se", "Lose weight", "A steady deficit, never below your resting rate."),
+        ("arrow-e", "Stay where I am", "Eat what you burn. Hold the line."),
+        ("arrow-ne", "Gain weight", "A modest surplus, sized to the pace you choose."),
+    ]
+    out = []
+    for name, label, desc in goals:
+        on = label == selected
+        glyph = (
+            f'<div style="width:44px;height:44px;border-radius:22px;flex:none;display:flex;align-items:center;justify-content:center;'
+            f'background:{BRASS if on else p["raised"]};">{icon(name, 22, "#FFFFFF" if on else p["on"], 2)}</div>'
+        )
+        out.append(selectable(p, f"""<div style="display:flex;align-items:center;gap:16px;">
+  {glyph}
+  <div style="flex:1;display:flex;flex-direction:column;gap:2px;">
+    <div style="{T_HEADING}color:{p['on']};">{label}</div>
+    <div style="{T_CAPTION}color:{alpha(p, 0.6)};text-wrap:pretty;">{desc}</div>
+  </div>
+</div>""", on))
+    return '<div style="display:flex;flex-direction:column;gap:12px;">' + "".join(out) + "</div>"
+
+
+def macro_split(p, selected="Balanced"):
+    # MacroSplitControl: three chips, then what the chosen split means.
+    chips = "".join(
+        '<div style="flex:1;">'
+        + selectable(p, f'<div style="{T_CAPTION}font-weight:600;color:{p["on"]};text-align:center;white-space:nowrap;">{s}</div>', s == selected, padding="12px 8px")
+        + "</div>"
+        for s in ("Balanced", "High protein", "Lower carb")
+    )
+    return f"""<div style="display:flex;gap:8px;">{chips}</div>
+<div style="height:8px;"></div>
+<div style="{T_CAPTION}color:{alpha(p, 0.55)};text-wrap:pretty;">Protein 25 · carbs 45 · fat 30 per cent of energy. Inside the reference ranges.</div>"""
+
+
+def target_summary(p, kcal, resting, maintenance, adjustment, macros, basis, compact=False):
+    # TargetSummary: the arc, the number, its provenance, the macros, the
+    # basis. Estimated, always: it is worked out, never weighed.
+    size, stroke, fs = (168, 10, 40) if compact else (208, 12, 48)
+    inside = (
+        f'<div style="{T_DISPLAY}font-size:{fs}px;color:{p["on"]};">{kcal}</div>'
+        f'<div style="{T_CAPTION}color:{alpha(p, 0.55)};">kcal a day</div>'
+    )
+    cells = "".join(
+        f'<div style="flex:1;display:flex;flex-direction:column;align-items:center;">'
+        f'<div style="width:28px;height:3px;border-radius:2px;background:{c};"></div><div style="height:8px;"></div>'
+        f'<div style="{T_NUMBER}font-size:17px;color:{p["on"]};">{g} g</div>'
+        f'<div style="{T_CAPTION}color:{alpha(p, 0.55)};">{l}</div></div>'
+        for l, g, c in (("Protein", macros[0], PROTEIN), ("Carbs", macros[1], CARBS), ("Fat", macros[2], FAT))
+    )
+    return f"""<div style="display:flex;justify-content:center;">{arc_gauge(p, adjustment, inside, size=size, stroke=stroke)}</div>
+<div style="height:12px;"></div>
+<div style="display:flex;justify-content:center;">{badge(p, False, f"Estimated · {resting} resting")}</div>
+<div style="height:8px;"></div>
+<div style="{T_CAPTION}color:{alpha(p, 0.55)};text-align:center;">{maintenance}</div>
+<div style="height:24px;"></div>
+<div style="display:flex;">{cells}</div>
+<div style="height:16px;"></div>
+<div style="{T_CAPTION}color:{alpha(p, 0.55)};text-wrap:pretty;">{basis}</div>"""
+
+
+# The persona with a goal: lose 5 kg at half a kilo a week. On the Goals
+# screen the latest reading exists, so resting energy is Cunningham from
+# fat-free mass (1,842, as the Body screen shows), maintenance 3,038 at
+# low active ×1.65, less 550 a day (0.5 × 7,700 / 7): 2,488. Protein is the
+# split's share or the 1.6 g/kg floor (126 g), whichever is higher — 156 g;
+# carbs and fat share the rest 45:30.
+GOALS_TARGET = dict(
+    kcal="2,488", resting="1842",
+    maintenance="550 kcal a day under what you burn, 3,038 kcal",
+    adjustment=2488 / 3038, macros=(156, 280, 83),
+    basis="From your fat-free mass (Cunningham 1980), low active ×1.65, less 550 kcal a day to lose 0.5 kg a week.",
+)
+
+# Onboarding has no reading yet, so the same person is sized by Mifflin-St
+# Jeor: 10×78.7 + 6.25×178 − 5×34 + 5 = 1,735; ×1.65 = 2,862; less 550 = 2,312.
+ONBOARDING_TARGET = dict(
+    kcal="2,312", resting="1735",
+    maintenance="550 kcal a day under what you burn, 2,862 kcal",
+    adjustment=2312 / 2862, macros=(145, 260, 77),
+    basis="From height, weight and age (Mifflin-St Jeor 1990), low active ×1.65, less 550 kcal a day to lose 0.5 kg a week.",
+)
+
+
+def pace_control(p):
+    # PaceControl: the word for the pace, what it costs a day, and the date
+    # it lands — said with the caveat, because it never lands exactly.
+    return f"""<div style="{T_HEADING}color:{p['on']};">0.5 kg a week — steady</div>
+<div style="height:2px;"></div>
+<div style="{T_CAPTION}color:{alpha(p, 0.6)};">550 kcal a day under what you burn</div>
+<div style="height:8px;"></div>
+{slider_track(p, 33)}
+<div style="height:8px;"></div>
+<div style="display:flex;align-items:center;gap:12px;padding:16px;border-radius:14px;background:{p['raised']};">
+  {icon("calendar", 20, BRASS)}
+  <div style="flex:1;display:flex;flex-direction:column;">
+    <div style="{T_BODY_STRONG}color:{p['on']};">About 10 weeks</div>
+    <div style="{T_CAPTION}color:{alpha(p, 0.6)};text-wrap:pretty;">Around 15 November 2026, if the pace holds. It usually does not hold exactly, and the target moves with each reading.</div>
+  </div>
+</div>"""
+
+
+def target_weight_control(p):
+    # TargetWeightControl: 73.7 is the default, five kilos down from 78.7.
+    return f"""<div style="display:flex;align-items:flex-end;gap:8px;">
+  <div style="{T_DISPLAY}font-size:56px;color:{p['on']};">73.7</div>
+  <div style="{T_TITLE}color:{alpha(p, 0.5)};padding-bottom:10px;">kg</div>
+</div>
+<div style="{T_CAPTION}color:{alpha(p, 0.6)};">5.0 kg down from 78.7 kg now</div>
+<div style="height:8px;"></div>
+{slider_track(p, 86)}"""
+
+
+def goals(p, height=None):
+    target = section(p, "Your daily target", card(p,
+        target_summary(p, compact=True, **GOALS_TARGET)
+        + f'<div style="height:12px;"></div><div style="{T_CAPTION}color:{alpha(p, 0.55)};text-wrap:pretty;">Sized from your latest reading, 78.7 kg. This will move as your weight does.</div>',
+        padding="24px"))
+    inner = f"""{status_space()}
+{app_bar(p, "Goals", leading=icon_button(p, "back"))}
+<div style="flex:1;overflow:hidden;"><div style="display:flex;flex-direction:column;padding:8px 16px 48px 16px;">
+{target}
+<div style="height:24px;"></div>
+{section(p, "Goal", goal_cards(p, "Lose weight"))}
+<div style="height:12px;"></div>
+{section(p, "Target weight", card(p, target_weight_control(p), padding="16px"))}
+<div style="height:24px;"></div>
+{section(p, "Pace", card(p, pace_control(p), padding="16px"))}
+<div style="height:24px;"></div>
+{section(p, "Macro split", macro_split(p))}
+</div></div>
+"""
+    return doc(inner, p, height=height)
+
+
+# ---------------------------------------------------------------- onboarding steps
+
+def step_bar(p, count, page):
+    # _Progress: one brass bar per step, filled up to the current one, with
+    # the way back on the left (kept in the layout on page 0, invisible).
+    back = f'<div style="opacity:{0 if page == 0 else 1};">{icon_button(p, "back")}</div>'
+    segs = "".join(
+        f'<div style="flex:1;height:3px;margin:0 2px;border-radius:999px;background:{BRASS if i <= page else p["line"]};"></div>'
+        for i in range(count)
+    )
+    return f'<div style="flex:none;display:flex;align-items:center;padding:8px 16px 8px 8px;">{back}{segs}</div>'
+
+
+def page_heading(p, title, body):
+    return f"""<div style="height:8px;"></div>
+<div style="{T_DISPLAY}font-size:30px;color:{p['on']};">{title}</div>
+<div style="height:8px;"></div>
+<div style="{T_BODY}color:{alpha(p, 0.65)};text-wrap:pretty;">{body}</div>
+<div style="height:24px;"></div>"""
+
+
+def onboarding_goal(p, height=None):
+    # Step three. Choosing a loss adds the target step, so the bar shows
+    # seven segments, three of them lit.
+    inner = f"""{status_space()}
+{step_bar(p, 7, 2)}
+<div style="flex:1;overflow:hidden;padding:0 24px;display:flex;flex-direction:column;">
+{page_heading(p, "What are you here for?", "This sets the daily target. You can change it any time in Settings, and it is recomputed from every reading, so it follows your weight rather than the other way round.")}
+{goal_cards(p, "Lose weight")}
+</div>
+<div style="padding:12px 24px 24px 24px;flex:none;">{filled_button(p, "Continue")}</div>
+"""
+    return doc(inner, p, height=height)
+
+
+def onboarding_summary(p, height=None):
+    # The last step: the number the questionnaire was for, and the one thing
+    # to understand about it. Estimated, from published equations, and it
+    # moves with the first reading off the scale.
+    inner = f"""{status_space()}
+{step_bar(p, 7, 6)}
+<div style="flex:1;overflow:hidden;padding:0 24px;display:flex;flex-direction:column;">
+{page_heading(p, "Your starting point", "Worked out on your phone from what you told us, using published equations. Your daily target, from today.")}
+{card(p, target_summary(p, **ONBOARDING_TARGET), padding="24px")}
+<div style="height:16px;"></div>
+<div style="display:flex;align-items:flex-start;gap:12px;">
+  <div style="padding-top:2px;">{icon("scale", 18, BRASS)}</div>
+  <div style="flex:1;{T_CAPTION}color:{alpha(p, 0.7)};text-wrap:pretty;">This will move as your weight does. Every reading off the scale recomputes it, and once there is an impedance reading it switches to your fat-free mass, which is a better basis than height and age.</div>
+</div>
+<div style="height:24px;"></div>
+<div style="{T_LABEL}text-transform:uppercase;color:{alpha(p, 0.5)};">How you like it split</div>
+<div style="height:8px;"></div>
+{macro_split(p)}
+</div>
+<div style="padding:12px 24px 24px 24px;flex:none;">{filled_button(p, "Start")}</div>
+"""
+    return doc(inner, p, height=height)
+
+
 # ---------------------------------------------------------------- canvas
 
 # Frame heights. Screens that scroll on a phone are shown full length; the
@@ -1028,6 +1443,8 @@ HEIGHTS = {
     "CookingOil": 844, "Body": 2060, "Settings": 1980, "TodayDark": 1100,
     "Recipes": 844, "Pairing": 844, "Account": 844, "Paywall": 1100,
     "Sources": 1320, "Components": 760,
+    "Progress": 2200, "ProgressDark": 2200, "Goals": 1660,
+    "OnboardingGoal": 844, "OnboardingSummary": 1100,
 }
 MEASURE = os.environ.get("MEASURE") == "1"
 
@@ -1051,6 +1468,11 @@ ARTBOARDS = [
     ("Paywall", lambda: paywall(LIGHT, h("Paywall")), "Mananu Plus", 390),
     ("Sources", lambda: sources(LIGHT, h("Sources")), "Connected sources", 390),
     ("Components", lambda: components(LIGHT, h("Components")), "Components", 900),
+    ("Progress", lambda: progress(LIGHT, h("Progress")), "Progress", 390),
+    ("ProgressDark", lambda: progress(DARK, h("ProgressDark")), "Progress · dark", 390),
+    ("Goals", lambda: goals(LIGHT, h("Goals")), "Goals", 390),
+    ("OnboardingGoal", lambda: onboarding_goal(LIGHT, h("OnboardingGoal")), "Onboarding · goal", 390),
+    ("OnboardingSummary", lambda: onboarding_summary(LIGHT, h("OnboardingSummary")), "Onboarding · summary", 390),
 ]
 
 
@@ -1068,6 +1490,13 @@ def main():
     for name in row2:
         positions[name] = (x, HEIGHTS["Body"] + 120)
         x += (900 if name == "Components" else 390) + 80
+    # Third row sits under the tallest of the second, so nothing above moves.
+    row3 = ["Progress", "ProgressDark", "Goals", "OnboardingGoal", "OnboardingSummary"]
+    row3_y = HEIGHTS["Body"] + 120 + max(HEIGHTS[n] for n in row2) + 120
+    x = 0
+    for name in row3:
+        positions[name] = (x, row3_y)
+        x += 390 + 80
     for stem, build, title, w in ARTBOARDS:
         (OUT / f"{stem}.dc.html").write_text(build())
         px, py = positions[stem]
@@ -1083,6 +1512,8 @@ def main():
              "text": "Body: the trend leads, the reading follows. Median line over faint raw dots so the noise is visible and honest; every tile opens its caveat and citation."},
             {"id": "note-row2", "x": 470, "y": 2070, "w": 440,
              "text": "Second row: the screens behind Settings. Pairing is the only place a scale is chosen. Account links the temporary user rather than creating a second one. Plus leads with what is free. Sources names the device behind every value."},
+            {"id": "note-row3", "x": 0, "y": row3_y - 110, "w": 440,
+             "text": "Third row: the week and the plan. Progress answers whether the week added up — weight against the goal, energy against the target, the diary kept or not — and a weekly average of estimated meals is still called an estimate. Goals and the two onboarding steps show the target being set: an arc, an Estimated badge, the equation it came from, and a plain sentence that it moves with every reading."},
         ],
         "launch": {"view": "canvas"},
     }
